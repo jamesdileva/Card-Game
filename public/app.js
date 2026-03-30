@@ -1,6 +1,6 @@
 const API = "/api/game";
 
-// 🎰 SPIN
+// SPIN
 async function spin() {
   const res = await fetch(`${API}/spin`, {
     method: "POST",
@@ -13,12 +13,29 @@ async function spin() {
   const data = await res.json();
 
   document.getElementById("result").innerText = JSON.stringify(data, null, 2);
-  document.getElementById("balance").innerText = data.balance;
+
+  // ✅ ONLY update balance if it exists
+  if (data.balance !== undefined) {
+    document.getElementById("balance").innerText = data.balance;
+  }
 
   update();
 }
 
-// 📦 CRATE
+// LOAD GAME
+async function loadGame() {
+  const res = await fetch("/api/game/state");
+  const data = await res.json();
+
+  document.getElementById("balance").innerText = data.balance;
+  document.getElementById("inventory").innerText =
+    JSON.stringify(data.inventory, null, 2);
+  document.getElementById("deck").innerText =
+    JSON.stringify(data.deck, null, 2);
+}
+loadGame(); //
+
+// CRATE
 async function openCrate(type) {
   const res = await fetch(`${API}/open-crate`, {
     method: "POST",
@@ -30,8 +47,9 @@ async function openCrate(type) {
 
   const data = await res.json();
 
-  document.getElementById("result").innerText = JSON.stringify(data, null, 2);
-  document.getElementById("balance").innerText = data.balance;
+  if (data.balance !== undefined) {
+    document.getElementById("balance").innerText = data.balance;
+}
 
   update();
 }
@@ -58,7 +76,7 @@ async function setDeck() {
   update();
 }
 
-// 🔄 UPDATE UI
+// UPDATE UI
 async function update() {
   const inv = await fetch(`${API}/inventory`).then(r => r.json());
   const deck = await fetch(`${API}/deck`).then(r => r.json());
@@ -67,5 +85,5 @@ async function update() {
   document.getElementById("deck").innerText = JSON.stringify(deck, null, 2);
 }
 
-// 🚀 INIT
-update();
+// INIT
+//update();

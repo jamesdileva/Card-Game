@@ -1,42 +1,125 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
   <title>Card Slot Game</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: #fff;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+    }
+
+    button {
+      padding: 10px 15px;
+      margin: 5px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .spin-btn {
+      background: #28a745;
+      color: white;
+    }
+
+    .crate-btn {
+      background: #007bff;
+      color: white;
+    }
+
+    .set-btn {
+      background: #ffc107;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: auto;
+    }
+
+    .slot {
+      font-size: 60px;
+      margin: 20px 0;
+      letter-spacing: 20px;
+    }
+
+    .card-box {
+      background: #222;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 8px;
+    }
+
+    input {
+      padding: 8px;
+      margin: 5px;
+      width: 120px;
+    }
+
+    pre {
+      text-align: left;
+      background: #222;
+      padding: 10px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+  </style>
 </head>
+
 <body>
+  <div class="container">
+    <h1>🎰 Card Slot Game</h1>
 
-<h1>🎰 Card Slot Game</h1>
+    <h3>Balance: $<span id="balance">0</span></h3>
 
-<p>Balance: <span id="balance">0</span></p>
+    <!-- SLOT -->
+    <div class="slot" id="slot">🎴 🎴 🎴</div>
 
-<button onclick="spin()">Spin (100)</button>
-<button onclick="openCrate('basic')">Open Basic Crate</button>
-<button onclick="openCrate('premium')">Open Premium Crate</button>
-<button onclick="openCrate('elite')">Open Elite Crate</button>
+    <button class="spin-btn" onclick="spin()">Spin (100)</button>
 
-<h2>Deck</h2>
-<pre id="deck"></pre>
+    <!-- CRATES -->
+    <div>
+      <button class="crate-btn" onclick="openCrate('basic')">Basic</button>
+      <button class="crate-btn" onclick="openCrate('premium')">Premium</button>
+      <button class="crate-btn" onclick="openCrate('elite')">Elite</button>
+    </div>
 
-<h2>Inventory</h2>
-<pre id="inventory"></pre>
+    <!-- RESULT -->
+    <h3>Result</h3>
+    <pre id="result"></pre>
 
-<h2>Result</h2>
-<pre id="result"></pre>
-<h2>🎰 Slot</h2>
-<div id="reels" style="font-size: 40px; margin: 20px;">
-  ❓ ❓ ❓
-</div>
+    <!-- DECK -->
+    <div class="card-box">
+      <h2>Deck</h2>
+      <pre id="deck"></pre>
+    </div>
 
-<h2>Result</h2>
-<p id="result"></p>
-<h2>🎮 Set Deck</h2>
+    <!-- INVENTORY -->
+    <div class="card-box">
+      <h2>Inventory</h2>
+      <pre id="inventory"></pre>
+    </div>
 
-<input id="card1" placeholder="card 1">
-<input id="card2" placeholder="card 2">
-<input id="card3" placeholder="card 3">
+    <!-- SET DECK -->
+    <div class="card-box">
+      <h2>Set Deck</h2>
+      <input id="card1" placeholder="card 1" />
+      <input id="card2" placeholder="card 2" />
+      <input id="card3" placeholder="card 3" />
+      <br />
+      <button class="set-btn" onclick="setDeck()">Set Deck</button>
+    </div>
+  </div>
 
-<button onclick="setDeck()">Set Deck</button>
-<script src="app.js"></script>
-
+  <script src="app.js"></script>
 </body>
 </html>

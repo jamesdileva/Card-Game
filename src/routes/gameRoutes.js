@@ -1,13 +1,15 @@
 const express = require("express");
 const router = express.Router();
+
 const { spinSlot } = require("../game/slot");
 const { openCrate } = require("../game/crate");
 
-// TEMP fake user
+// TEMP DATA (resets on restart)
 let balance = 1000;
 let inventory = [];
-let deck = ["lucky_charm", "double_down", "none"];
+let deck = ["none", "none", "none"];
 
+// 📦 OPEN CRATE
 router.post("/open-crate", (req, res) => {
   const { type } = req.body;
 
@@ -19,20 +21,14 @@ router.post("/open-crate", (req, res) => {
 
   const cost = costs[type];
 
-  if (!cost) {
-    return res.json({ error: "Invalid crate type" });
-  }
-
-  if (balance < cost) {
-    return res.json({ error: "Not enough balance" });
-  }
+  if (!cost) return res.json({ error: "Invalid crate type" });
+  if (balance < cost) return res.json({ error: "Not enough balance" });
 
   balance -= cost;
 
   const rewards = openCrate(type);
 
-  // ADD TO INVENTORY
-  inventory.push(...rewards.map(card => card.id));
+  inventory.push(...rewards);
 
   res.json({
     type,
@@ -41,32 +37,45 @@ router.post("/open-crate", (req, res) => {
     balance
   });
 });
+// STATE
+router.get("/state", (req, res) => {
+  res.json({
+    balance,
+    inventory,
+    deck
+  });
+});
 
+// 🎰 SPIN
 router.post("/spin", (req, res) => {
   const { bet } = req.body;
 
-  if (bet > balance) {
-    return res.json({ error: "Not enough balance" });
-  }
+  if (bet > balance) return res.json({ error: "Not enough balance" });
 
-  // subtract bet
   balance -= bet;
 
   const result = spinSlot(bet, deck);
-  // add winnings
+
   balance += result.payout;
 
   res.json({
     reels: result.reels,
     payout: result.payout,
-    balance: balance
+    balance
   });
 });
 
+// 🎴 INVENTORY
 router.get("/inventory", (req, res) => {
   res.json({ inventory });
 });
 
+// 🎮 DECK
+router.get("/deck", (req, res) => {
+  res.json({ deck });
+});
+
+// 🔧 SET DECK
 router.post("/set-deck", (req, res) => {
   const { newDeck } = req.body;
 
@@ -74,12 +83,13 @@ router.post("/set-deck", (req, res) => {
     return res.json({ error: "Deck must have 3 cards" });
   }
 
-  // check if player owns cards
   for (let card of newDeck) {
-    if (!inventory.includes(card)) {
-      return res.json({ error: `You don't own ${card}` });
-    }
+  const ownsCard = inventory.some(item => item.id === card);
+
+  if (card !== "none" && !ownsCard) {
+    return res.json({ error: `You don't own ${card}` });
   }
+}
 
   deck = newDeck;
 
@@ -87,4 +97,3 @@ router.post("/set-deck", (req, res) => {
 });
 
 module.exports = router;
-console.log("Inventory:", inventory);
