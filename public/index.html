@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Card Slot Game</title>
+</head>
+<body>
+
+<h1>🎰 Card Slot Game</h1>
+
+<p>Balance: <span id="balance">0</span></p>
+
+<button onclick="spin()">Spin (100)</button>
+<button onclick="openCrate('basic')">Open Basic Crate</button>
+<button onclick="openCrate('premium')">Open Premium Crate</button>
+<button onclick="openCrate('elite')">Open Elite Crate</button>
+
+<h2>Deck</h2>
+<pre id="deck"></pre>
+
+<h2>Inventory</h2>
+<pre id="inventory"></pre>
+
+<h2>Result</h2>
+<pre id="result"></pre>
+<h2>🎰 Slot</h2>
+<div id="reels" style="font-size: 40px; margin: 20px;">
+  ❓ ❓ ❓
+</div>
+
+<h2>Result</h2>
+<p id="result"></p>
+<h2>🎮 Set Deck</h2>
+
+<input id="card1" placeholder="card 1">
+<input id="card2" placeholder="card 2">
+<input id="card3" placeholder="card 3">
+
+<button onclick="setDeck()">Set Deck</button>
+<script src="app.js"></script>
+
+</body>
+</html>
