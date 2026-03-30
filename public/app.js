@@ -12,16 +12,34 @@ async function spin() {
 
   const data = await res.json();
 
-  document.getElementById("result").innerText = JSON.stringify(data, null, 2);
-
-  // ✅ ONLY update balance if it exists
-  if (data.balance !== undefined) {
-    document.getElementById("balance").innerText = data.balance;
+  if (data.error) {
+    document.getElementById("result").innerText = data.error;
+    return;
   }
+
+const symbols = {
+  cherry: "🍒",
+  lemon: "🍋",
+  orange: "🍊",
+  grape: "🍇",
+  bar: "🔲",
+  seven: "7️⃣",
+  diamond: "💎",   // ✅ ADD THIS
+  star: "⭐"       // ✅ ADD THIS
+};
+  const getSymbol = (s) => symbols[s] || "❓";
+  // 🎰 Update slot display
+  document.getElementById("slot").innerText =
+  `${getSymbol(data.reels[0])}   ${getSymbol(data.reels[1])}   ${getSymbol(data.reels[2])}`;
+  console.log(data.reels);
+  // 💰 Balance
+  document.getElementById("balance").innerText = data.balance;
+
+  // 📄 Result
+  document.getElementById("result").innerText = `Payout: ${data.payout}`;
 
   update();
 }
-
 // LOAD GAME
 async function loadGame() {
   const res = await fetch("/api/game/state");
