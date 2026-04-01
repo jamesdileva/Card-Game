@@ -2,55 +2,54 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Card Slot Game</title>
-  <link rel="stylesheet" href="style.css"> <!-- optional external CSS -->
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #111;
-      color: #fff;
-      text-align: center;
-      margin: 0;
-      padding: 0;
-    }
-    header { padding: 1rem; font-size: 1.5rem; font-weight: bold; }
-    #balance { font-size: 1.2rem; margin-bottom: 1rem; }
-    #slot-reels { font-size: 3rem; margin: 1rem 0; letter-spacing: 1rem; }
-    .btn { padding: 0.5rem 1rem; margin: 0.25rem; border: none; border-radius: 5px; font-size: 1rem; cursor: pointer; }
-    .btn-spin { background: green; color: #fff; }
-    .btn-crate { background: #007bff; color: #fff; }
-    #result, pre { background: #222; padding: 1rem; border-radius: 5px; width: 60%; margin: 1rem auto; min-height: 2rem; white-space: pre-wrap; overflow-x: auto; text-align: left; }
-    input { width: 3rem; text-align: center; margin: 0 0.25rem; }
-  </style>
+  <title>🎰 Card Slot Game</title>
+  <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
-  <header>🎰 Card Slot Game</header>
+  <div class="game-container">
 
-  <div id="balance">Balance: $0</div>
+    <header>🎰 Card Slot Game</header>
 
-  <!-- Slot -->
-  <div id="slot-reels">❓ ❓ ❓</div>
-  <button class="btn btn-spin" id="spin-btn">Spin (100)</button>
+    <!-- ✅ Top bar -->
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div id="balance">Balance: $0</div>
+      <button id="logout-btn">Logout</button>
+      <button onclick="addBalance()">+10K Dev</button>
+    </div>
 
-  <!-- Crates -->
-  <div>
-    <button class="btn btn-crate" data-crate="basic">Basic</button>
-    <button class="btn btn-crate" data-crate="premium">Premium</button>
-    <button class="btn btn-crate" data-crate="elite">Elite</button>
+    <!-- Slot Machine -->
+    <div class="slot-section">
+      <div id="slot-reels">❓ ❓ ❓</div>
+      <button class="btn btn-spin" id="spin-btn">Spin (100)</button>
+      <button class="btn" onclick="autoSpin()">Auto Spin</button>
+    </div>
+
+    <!-- Crates -->
+    <div class="crate-container">
+      <button class="btn btn-crate" data-crate="basic">Basic</button>
+      <button class="btn btn-crate" data-crate="premium">Premium</button>
+      <button class="btn btn-crate" data-crate="elite">Elite</button>
+    </div>
+
+    <!-- Result -->
+    <h2>Result</h2>
+    <div id="result"></div>
+
+    <!-- Deck -->
+    <h2>Deck</h2>
+    <div id="deck"></div>
+
+    <!-- Inventory -->
+    <h2>Inventory</h2>
+    <div id="inventory"></div>
+
   </div>
-
-  <!-- Result -->
-  <h2>Result</h2>
-  <div id="result"></div>
-
-  <!-- Deck -->
-  <h2>Deck</h2>
-  <div id="deck"></div>
-
-  <!-- Inventory -->
-  <h2>Inventory</h2>
-  <div id="inventory"></div>
-
+<div style="margin-top:20px;">
+  <button onclick="addBalance()">+10K 💰</button>
+  <button onclick="resetAccount()">Reset 🔄</button>
+  <button onclick="devCard('mythic_multiplier','legendary')">+Legendary</button>
+</div>
   <script src="app.js" defer></script>
 </body>
 </html>

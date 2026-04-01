@@ -1,64 +1,288 @@
-/* --- Inventory & Deck Layout --- */
-#deck {
+/* --- Base Layout --- */
+body {
+  font-family: Arial, sans-serif;
+  background: radial-gradient(circle at top, #1a1a1a, #0d0d0d);
+  color: #fff;
+  margin: 0;
   display: flex;
   justify-content: center;
-  gap: 12px;
-  margin-bottom: 25px;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .game-container {
   max-width: 900px;
   margin: 40px auto;
   padding: 20px;
+  text-align: center;
 }
 
+/* --- Header --- */
+header {
+  font-size: 2.5rem;
+  font-weight: bold;
+  margin-bottom: 10px;
+  text-shadow: 0 0 10px #FFD700;
+}
+
+/* --- Balance --- */
+#balance {
+  font-size: 1.2rem;
+  margin-bottom: 15px;
+  padding: 6px 12px;
+  display: inline-block;
+  background: #222;
+  border-radius: 8px;
+}
+/* --- SLOT MACHINE LOCKED AREA --- */
+.slot-section {
+  background: #000;
+  padding: 20px;
+  border-radius: 12px;
+  margin: 20px auto;
+  width: 320px; /* 🔒 fixed width */
+  box-shadow: inset 0 0 10px #000, 0 0 20px #111;
+}
+
+
+/* --- Slot Reels --- */
+#slot-reels {
+  min-height: 60px; /* 🔒 fixed height */
+  font-size: 3rem;
+  margin: 20px 0;
+  letter-spacing: 12px;
+  padding: 10px;
+  background: #000;
+  border-radius: 10px;
+  box-shadow: inset 0 0 10px #000, 0 0 10px #222;
+}
+
+/* --- Buttons --- */
+.btn {
+  padding: 8px 14px;
+  margin: 5px;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+#logout-btn {
+  background: red;
+  color: white;
+  padding: 6px 12px;
+  border: none;
+  cursor: pointer;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+}
+
+.btn-spin {
+  background: #28a745;
+  color: #fff;
+}
+
+.btn-crate {
+  background: #007bff;
+  color: #fff;
+}
+
+/* --- Section Spacing --- */
+h2 {
+  margin-top: 25px;
+  margin-bottom: 10px;
+}
+
+/* --- Result Box --- */
+#result {
+  background: #1a1a1a;
+  border-radius: 10px;
+  padding: 12px;
+  margin: 20px auto;
+
+  width: 70%;
+  min-height: 140px;   /* 🔥 was 40px — too small */
+  max-height: 140px;   /* 🔥 lock height */
+  
+  display: flex;       /* 🔥 center content nicely */
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;     /* allows multiple cards */
+  transition: all 0.25s ease;
+  box-shadow: inset 0 0 10px #000;
+}
+
+/* --- Deck Layout --- */
+#deck {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin: 20px 0;
+  min-height: 140px;
+  padding: 10px;
+  background: #111;
+  border-radius: 10px;
+}
+
+/* --- Inventory Layout --- */
 #inventory {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: 10px;
+  max-width: 700px;
+  margin: 0 auto;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 /* --- Card Base --- */
 .card {
-  width: 80px;
-  height: 120px;
+  width: 100px;
+  height: 130px;
+  padding: 8px;
+
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.85rem;
-  background: #2a2a2a;
-  color: #fff;
+
+  font-size: 0.8rem;
   text-align: center;
-  word-break: break-word;
+
   border-radius: 12px;
-  cursor: grab;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+  color: #fff;
+
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+
   user-select: none;
+  position: relative;
+
+  overflow: hidden;
+
+  word-break: break-word;
+  line-height: 1.1;
 }
 
-/* 👇 subtle hover lift */
+/* --- Card Interactions --- */
 .card:hover {
-  transform: translateY(-4px) scale(1.03);
+  transform: translateY(-6px) scale(1.05);
 }
 
-/* 👇 clicking/dragging feel */
+.card-name {
+  font-size: 0.7rem;
+  line-height: 1.2;
+  text-align: center;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100%;
+  height: 100%;
+
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.card-count {
+  position: absolute;
+  bottom: 5px;
+  right: 8px;
+  font-size: 0.8rem;
+  color: gold;
+  font-weight: bold;
+}
+
+#dev-balance-btn {
+  background: gold;
+  color: black;
+  padding: 6px 12px;
+  border-radius: 6px;
+  margin-left: 10px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+body {
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+body {
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+body.common {
+  background-color: #111;
+  box-shadow: inset 0 0 10px rgba(255,255,255,0.05);
+}
+
+body.rare {
+  background-color: #0d1f2d;
+  box-shadow: inset 0 0 25px rgba(79,195,247,0.25);
+}
+
+body.epic {
+  background-color: #1a0d2d;
+  box-shadow: inset 0 0 40px rgba(186,104,200,0.35);
+}
+
+body.legendary {
+  background-color: #2d1a00;
+  box-shadow: inset 0 0 70px rgba(255,215,0,0.6);
+  animation: legendaryFlash 0.4s ease 2;
+}
+.card.rarity-common:hover {
+  box-shadow: 0 0 10px #aaa;
+}
+
+.card.rarity-rare:hover {
+  box-shadow: 0 0 20px #4FC3F7;
+}
+
+.card.rarity-epic:hover {
+  box-shadow: 0 0 25px #BA68C8;
+}
+
+.card.rarity-legendary:hover {
+  box-shadow: 0 0 35px gold;
+}
+
+.legendary-popup {
+  position: fixed;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 3rem;
+  color: gold;
+  text-shadow: 0 0 20px gold, 0 0 40px gold;
+  animation: pop 0.5s ease;
+  z-index: 999;
+}
+
+@keyframes pop {
+  0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+@keyframes legendaryFlash {
+  0% { filter: brightness(1); }
+  50% { filter: brightness(1.4); }
+  100% { filter: brightness(1); }
+}
 .card:active {
-  cursor: grabbing;
   transform: scale(0.95);
+  cursor: grabbing;
 }
 
 /* --- Deck Slots --- */
 .deck-slot {
   border: 2px solid #444;
   background: #1a1a1a;
-}
-
-/* 👇 hover when dragging over slot */
-.deck-slot.hovered {
-  border: 2px solid #4FC3F7;
-  box-shadow: 0 0 15px #4FC3F7;
-  transform: scale(1.08);
 }
 
 /* --- Empty Slot --- */
@@ -68,31 +292,33 @@
   border: 2px dashed #555;
 }
 
-/* --- Glow on Click --- */
+/* --- Drop Highlight --- */
+.deck-slot.hovered {
+  border: 2px solid #4FC3F7;
+  box-shadow: 0 0 15px #4FC3F7;
+  transform: scale(1.08);
+}
+
+/* --- Glow Click Effect --- */
 .card.glow {
   box-shadow: 0 0 15px 5px rgba(255, 255, 255, 0.8);
-  transform: scale(1.1);
 }
 
 /* --- Rarity Styles --- */
 .card.rarity-common {
-  background: #2a2a2a;
   box-shadow: 0 0 5px #aaa;
 }
 
 .card.rarity-rare {
-  background: #1f2f3a;
   box-shadow: 0 0 12px #4FC3F7;
 }
 
 .card.rarity-epic {
-  background: #2d1f3a;
-  box-shadow: 0 0 16px #BA68C8;
+  box-shadow: 0 0 18px #BA68C8;
 }
 
 .card.rarity-legendary {
-  background: #3a321f;
-  box-shadow: 0 0 20px #FFD700;
+  box-shadow: 0 0 25px #FFD700;
 }
 
 /* --- Bonus RNG Pulse --- */
@@ -106,7 +332,144 @@
   box-shadow: 0 0 15px 5px #FF4081;
 }
 
-/* --- Slot Reel Glow --- */
+/* --- Slot Glow --- */
 #slot-reels .glow {
   text-shadow: 0 0 10px #fff, 0 0 20px #fff;
+}
+
+/* --- Reel Spin Animation --- */
+.spin-fast {
+  animation: spinFast 0.1s infinite linear;
+}
+
+.spin-slow {
+  animation: spinSlow 0.3s infinite linear;
+}
+
+@keyframes spinFast {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-10px); }
+}
+
+@keyframes spinSlow {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-5px); }
+}
+
+.reel {
+  display: inline-block;
+  width: 60px;
+  font-size: 2.5rem;
+}
+
+/* --- Reel Stop Bounce --- */
+.reel-stop {
+  animation: reelStop 0.3s ease;
+}
+
+@keyframes reelStop {
+  0% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+/* --- WIN EFFECT --- */
+.win {
+  animation: winFlash 0.6s ease;
+}
+
+@keyframes winFlash {
+  0% { background-color: #111; }
+  50% { background-color: #1a3a1a; }
+  100% { background-color: #111; }
+}
+
+/* --- BIG WIN GLOW --- */
+.big-win {
+  animation: bigWinGlow 1s infinite alternate;
+}
+
+.card-reveal {
+  display: inline-flex;
+  width: 90px;
+  height: 130px;
+  align-items: center;
+  justify-content: center;
+  margin: 6px;
+  border-radius: 12px;
+  background: #222;
+  transform: rotateY(90deg);
+  transition: transform 0.4s ease;
+}
+
+.card-reveal.revealed {
+  transform: rotateY(0deg);
+}
+@keyframes bigWinGlow {
+  from { box-shadow: 0 0 10px gold; }
+  to { box-shadow: 0 0 30px gold; }
+}
+
+/* --- LOSS SHAKE --- */
+.lose {
+  animation: shake 0.3s;
+}
+
+@keyframes shake {
+  0% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  50% { transform: translateX(5px); }
+  75% { transform: translateX(-5px); }
+  100% { transform: translateX(0); }
+}
+
+.crate-open {
+  animation: cratePop 0.4s ease;
+}
+
+@keyframes cratePop {
+  0% { transform: scale(0.8); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.card::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -75%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255,255,255,0.4), transparent);
+  transform: skewX(-25deg);
+  pointer-events: none;
+}
+
+.card:hover::after {
+  animation: shine 0.8s;
+}
+
+@keyframes shine {
+  100% {
+    left: 125%;
+  }
+}
+.floating-win {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 2rem;
+  font-weight: bold;
+  color: gold;
+  pointer-events: none;
+  animation: floatUp 1s ease forwards;
+}
+
+@keyframes floatUp {
+  0% { opacity: 0; transform: translate(-50%, 20px); }
+  50% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -40px); }
+}
+#slot-reels span {
+  display: inline-block;
+  width: 50px;
 }

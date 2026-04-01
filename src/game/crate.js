@@ -1,15 +1,34 @@
-const { getRandomCard } = require("./cards");
+const { cards } = require("./cards");
+
+function getRandomCard(pool) {
+  const totalWeight = pool.reduce((sum, c) => sum + c.weight, 0);
+  let rand = Math.random() * totalWeight;
+
+  for (let card of pool) {
+    if (rand < card.weight) return card;
+    rand -= card.weight;
+  }
+}
 
 function openCrate(type) {
-  let pulls = 3;
+  let pool;
 
-  if (type === "premium") pulls = 5;
-  if (type === "elite") pulls = 7;
+  if (type === "basic") {
+    pool = cards.filter(c => c.rarity === "common");
+  } else if (type === "premium") {
+    pool = cards.filter(c =>
+      c.rarity === "common" || c.rarity === "rare"
+    );
+  } else if (type === "elite") {
+    pool = cards;
+  } else {
+    return [];
+  }
 
-  let rewards = [];
+  const rewards = [];
 
-  for (let i = 0; i < pulls; i++) {
-    rewards.push(getRandomCard());
+  for (let i = 0; i < 2; i++) {
+    rewards.push(getRandomCard(pool));
   }
 
   return rewards;

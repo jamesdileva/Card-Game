@@ -1,102 +1,122 @@
 const API = "/api/game";
 let spinInterval;
+
 console.log("APP LOADED");
 
-// --- HELPER: normalize any array from API ---
+// --- HELPER ---
 function normalizeArray(data, key) {
   if (Array.isArray(data)) return data;
   if (data && Array.isArray(data[key])) return data[key];
   return [];
 }
 
+// --- SAFE FETCH (returns JSON) ---
+async function safeFetch(url, options = {}) {
+  try {
+    const res = await fetch(url, options);
+
+    if (res.status === 401) {
+      window.location.href = "/login.html";
+      return null;
+    }
+    if (!res.ok) {
+      console.error("Bad response:", res.status);
+      return null;
+    }
+
+    return await res.json();
+  } catch (err) {
+    console.error("Fetch failed:", err);
+    return null;
+  }
+}
+// LOG OUT 
+async function logout() {
+  await safeFetch("/api/auth/logout");
+  window.location.href = "/login.html";
+}
+// ADD BALANCE DEV TOOL 
+async function addBalance() {
+  await safeFetch("/api/game/add-balance", { method: "POST" });
+  await update(); // 🔥 THIS is what you were missing
+}
+
+function cleanCardId(id) {
+  if (!id) return "Unknown";
+
+  //  Force it into a real card object first
+  const card = normalizeCard(id);
+  const safeId = card.id;
+
+  return safeId
+    .split("_")
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+
 // --- RENDER INVENTORY ---
 function renderInventory(inventoryArray) {
   const invEl = document.getElementById("inventory");
-  console.log("RENDER INVENTORY HIT");
-  if (!invEl) {
-    console.error("Inventory element missing");
-    return;
-  }
+  if (!invEl) return;
 
   invEl.innerHTML = '';
 
-  inventoryArray.forEach(card => {
+  inventoryArray.forEach(rawCard => {
+    const card = normalizeCard(rawCard); // ✅ FIXED
     if (!card) return;
 
     const cardEl = document.createElement('div');
     cardEl.classList.add('card');
 
-    const cardId = card.id || card;
-    const rarity = card.rarity || 'common';
+    const rawId = card.id;
+    const displayId = cleanCardId(rawId);
+    const rarity = card.rarity || "common";
+    const count = card.count || 1;
 
-    cardEl.textContent = cardId;
+    cardEl.innerHTML = `
+      <span class="card-name">${displayId}</span>
+      ${count > 1 ? `<span class="card-count">x${count}</span>` : ""}
+    `;
+
     cardEl.classList.add(`rarity-${rarity}`);
-
     cardEl.draggable = true;
 
     cardEl.addEventListener("dragstart", (e) => {
-      e.dataTransfer.setData("cardId", cardId);
-      console.log("Dragging:", cardId);
+      e.dataTransfer.setData("cardId", rawId);
     });
 
     invEl.appendChild(cardEl);
   });
 }
 
-async function addCardToDeck(cardId) {
-  try {
-    const deckData = await fetch(`${API}/deck`).then(r => r.json());
-    let deckArray = normalizeArray(deckData, 'deck');
-
-    console.log("Current deck:", deckArray);
-
-    // Replace first "none" instead of blocking
-    const emptyIndex = deckArray.findIndex(c => c === null); 
-
-    if (emptyIndex !== -1) {
-      deckArray[emptyIndex] = cardId;
-    } else {
-      document.getElementById("result").innerText = "Deck is full!";
-      return;
-    }
-
-    console.log("New deck:", deckArray);
-
-    const res = await fetch(`${API}/set-deck`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ newDeck: deckArray })
-    });
-
-    await res.json();
-
-    document.getElementById("result").innerText = "Card added to deck!";
-    update();
-
-  } catch (err) {
-    console.error("Failed to add card:", err);
-  }
-}
 
 // --- RENDER DECK ---
 function renderDeck(deckArray) {
   const deckEl = document.getElementById("deck");
+  if (!deckEl) return;
+
+  console.log("RENDER DECK:", deckArray);
+
   deckEl.innerHTML = '';
 
-  deckArray.forEach((card, index) => {
+  deckArray.forEach((rawCard, index) => {
     const cardEl = document.createElement('div');
     cardEl.classList.add('card', 'deck-slot');
 
-    if (!card) {
+    if (!rawCard || !rawCard.id) {
       cardEl.textContent = "+";
       cardEl.classList.add('empty-slot');
     } else {
-      const cardId = typeof card === "string" ? card : card.id;
+      const card = normalizeCard(rawCard);
 
-      cardEl.textContent = cardId;
-
-      // 👇 OPTIONAL: fake rarity so it still looks good
-      cardEl.classList.add('rarity-common');
+      if (!card || !card.id) {
+        cardEl.textContent = "?";
+      } else {
+        const displayId = cleanCardId(card.id);
+        cardEl.innerHTML = `<span class="card-name">${displayId}</span>`;
+        cardEl.classList.add(`rarity-${card.rarity || "common"}`);
+      }
     }
 
     // drag/drop
@@ -114,6 +134,8 @@ function renderDeck(deckArray) {
       cardEl.classList.remove("hovered");
 
       const cardId = e.dataTransfer.getData("cardId");
+      if (!cardId) return;
+
       await replaceDeckSlot(index, cardId);
     });
 
@@ -121,117 +143,206 @@ function renderDeck(deckArray) {
   });
 }
 
-// --- VALIDATE DECK ---
-function validateDeck(deck, inventoryObj) {
-  const counts = {};
-  for (const card of deck) {
-    if (!card) return false;
-    counts[card] = (counts[card] || 0) + 1;
+
+
+// --- FULLY NORMALIZE CARD ---
+function normalizeCard(card) {
+  if (!card) return null;
+
+  // If already an object with a plain id string, return it directly
+  if (typeof card === "object" && typeof card.id === "string") {
+    return {
+      id: card.id,
+      rarity: card.rarity || "common",
+      count: card.count || 1
+    };
   }
-  for (const [card, count] of Object.entries(counts)) {
-    if (!inventoryObj[card] || inventoryObj[card] < count) return false;
+
+  // If card is a string
+  if (typeof card === "string") {
+    try {
+      return normalizeCard(JSON.parse(card)); // parse once recursively
+    } catch {
+      return { id: card, rarity: "common", count: 1 };
+    }
   }
-  return true;
+
+  return null;
 }
 
-// --- SET DECK ---
-/**async function setDeck() {
-  const newDeck = [
-    document.getElementById("card1").value.trim(),
-    document.getElementById("card2").value.trim(),
-    document.getElementById("card3").value.trim()
-  ];
 
+// --- REPLACE DECK SLOT (fixed) ---
+// --- REPLACE DECK SLOT (cleaned) ---
+async function replaceDeckSlot(slotIndex, cardId) {
   try {
-    const inventoryData = await fetch(`${API}/inventory`).then(r => r.json());
-    const inventoryArray = normalizeArray(inventoryData, 'inventory');
+    const [deckData, invData] = await Promise.all([
+      safeFetch(`${API}/deck`),
+      safeFetch(`${API}/inventory`)
+    ]);
 
-    const inventoryObj = {};
-    for (const item of inventoryArray) {
-      if (!item || !item.id) continue;
-      inventoryObj[item.id] = (inventoryObj[item.id] || 0) + 1;
-    }
+    if (!deckData || !invData) return;
 
-    if (!validateDeck(newDeck, inventoryObj)) {
-      document.getElementById("result").innerText = "Invalid deck: duplicates or cards you don't own";
+    const deckObjects = normalizeArray(deckData, "deck");
+
+    const inventoryArray = normalizeArray(invData, "inventory").map(c => ({
+      ...normalizeCard(c),
+      count: c.count || 1
+    }));
+
+    const ownedCard = inventoryArray.find(c => c.id === cardId);
+    const ownedCount = ownedCard?.count ?? 0;
+
+    const currentDeckCount = deckObjects.filter(c => c && c.id === cardId).length;
+    const isReplacingSame = deckObjects[slotIndex]?.id === cardId;
+    const adjustedCount = isReplacingSame ? currentDeckCount - 1 : currentDeckCount;
+
+    console.log({
+      cardId,
+      ownedCount,
+      currentDeckCount,
+      adjustedCount
+    });
+
+    if (adjustedCount >= ownedCount) {
+      document.getElementById("result").innerText =
+        `You only own ${ownedCount} copy(s) of ${cleanCardId(cardId)}`;
       return;
     }
 
-    const res = await fetch(`${API}/set-deck`, {
+    const deckIds = deckObjects.map(c => c ? c.id : null);
+    deckIds[slotIndex] = cardId;
+
+    await safeFetch(`${API}/set-deck`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ newDeck })
+      body: JSON.stringify({ newDeck: deckIds })
     });
-    const data = await res.json();
-    document.getElementById("result").innerText = JSON.stringify(data, null, 2);
 
-    update();
+    document.getElementById("result").innerText =
+      `Placed ${cleanCardId(cardId)} in slot ${slotIndex + 1}`;
+
+    await update();
+
   } catch (err) {
-    console.error(err);
-    document.getElementById("result").innerText = "Error setting deck. See console for details.";
+    console.error("Replace slot failed:", err);
   }
-} **/
+}
 
-// --- SPIN FUNCTIONS ---
+// --- SPIN ---
 async function spin() {
   const spinBtn = document.getElementById("spin-btn");
+  const reelsEl = document.getElementById("slot-reels");
+
   spinBtn.disabled = true;
 
-  const balance = parseInt(document.getElementById("balance").innerText.replace(/\D/g,''), 10);
+  const balance = parseInt(
+    document.getElementById("balance").innerText.replace(/\D/g, ''),
+    10
+  );
+
   if (balance < 100) {
     document.getElementById("result").innerText = "Not enough balance!";
     spinBtn.disabled = false;
     return;
   }
 
-  stopSpinAnimation();
   startSpinAnimation();
+  reelsEl.classList.add("spin-fast");
 
   try {
-    const res = await fetch(`${API}/spin`, {
+    const data = await safeFetch(`${API}/spin`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ bet: 100 })
     });
-    const data = await res.json();
+
+    if (!data) {
+      spinBtn.disabled = false;
+      stopSpinAnimation();
+      return;
+    }
 
     if (data.error) {
       document.getElementById("result").innerText = data.error;
       spinBtn.disabled = false;
+      stopSpinAnimation();
       return;
     }
 
     setTimeout(() => {
       stopSpinAnimation();
 
-      const symbols = {
-        cherry: "🍒", lemon: "🍋", orange: "🍊",
-        grape: "🍇", bar: "🔲", seven: "7️⃣",
-        diamond: "💎", star: "⭐"
-      };
-      const reels = normalizeArray(data.reels);
-      const getSymbol = s => symbols[s] || "❓";
+      reelsEl.classList.remove("spin-fast");
+      reelsEl.classList.add("spin-slow");
 
-      document.getElementById("slot-reels").innerHTML =
-        reels.map(s => `<span class="glow">${getSymbol(s)}</span>`).join(' ');
+      setTimeout(() => {
+        reelsEl.classList.remove("spin-slow");
 
-      document.getElementById("balance").innerText = `Balance: $${data.balance}`;
-      document.getElementById("result").innerText = `Payout: ${data.payout}`;
+        const symbols = {
+          cherry: "🍒", lemon: "🍋", orange: "🍊",
+          grape: "🍇", bar: "🔲", seven: "7️⃣",
+          diamond: "💎", star: "⭐"
+        };
 
-      update();
-      spinBtn.disabled = false;
-    }, 1000);
+        const getSymbol = s => symbols[s] || "❓";
+        const reels = data.reels;
+
+        reelsEl.innerHTML = `
+          <span id="r1">❓</span>
+          <span id="r2">❓</span>
+          <span id="r3">❓</span>
+        `;
+
+        const r1 = document.getElementById("r1");
+        const r2 = document.getElementById("r2");
+        const r3 = document.getElementById("r3");
+
+        setTimeout(() => {
+          r1.innerText = getSymbol(reels[0]);
+          r1.classList.add("reel-stop");
+        }, 200);
+
+        setTimeout(() => {
+          r2.innerText = getSymbol(reels[1]);
+          r2.classList.add("reel-stop");
+        }, 500);
+
+        setTimeout(() => {
+          r3.innerText = getSymbol(reels[2]);
+          r3.classList.add("reel-stop");
+
+          document.getElementById("balance").innerText =
+            `Balance: $${data.balance}`;
+
+          document.getElementById("result").innerText =
+            `Payout: ${data.payout}`;
+
+          showSpinResultEffect(data.payout);
+          showFloatingWin(data.payout);
+
+          update();
+          spinBtn.disabled = false;
+
+        }, 800);
+
+      }, 400);
+
+    }, 600);
 
   } catch (err) {
     console.error(err);
     spinBtn.disabled = false;
+    stopSpinAnimation();
   }
 }
 
+// --- ANIMATIONS ---
 function startSpinAnimation() {
-  const fakeSymbols = ["🍒","🍋","🍊","🍇","🔲","7️⃣","💎","⭐"];
+  const fake = ["🍒","🍋","🍊","🍇","🔲","7️⃣","💎","⭐"];
   spinInterval = setInterval(() => {
-    const r = Array.from({length:3}, () => fakeSymbols[Math.floor(Math.random() * fakeSymbols.length)]);
+    const r = Array.from({ length: 3 },
+      () => fake[Math.floor(Math.random() * fake.length)]
+    );
     document.getElementById("slot-reels").innerText = r.join(" ");
   }, 100);
 }
@@ -240,15 +351,64 @@ function stopSpinAnimation() {
   clearInterval(spinInterval);
 }
 
-// --- OPEN CRATE ---
+// --- FLOATING WIN ---
+function showFloatingWin(amount) {
+  if (amount <= 0) return;
+
+  const el = document.createElement("div");
+  el.className = "floating-win";
+  el.innerText = `+${amount}💰`;
+
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1200);
+}
+
+// --- RESULT EFFECT ---
+function showSpinResultEffect(payout) {
+  const body = document.body;
+
+  body.classList.remove("win", "lose");
+
+  if (payout > 0) {
+    body.classList.add("win");
+    if (payout >= 500) {
+      document.getElementById("slot-reels").classList.add("big-win");
+    }
+  } else {
+    body.classList.add("lose");
+  }
+
+  setTimeout(() => {
+    body.classList.remove("win", "lose");
+    document.getElementById("slot-reels").classList.remove("big-win");
+  }, 1000);
+}
+let auto = false;
+
+function autoSpin() {
+  auto = !auto;
+
+  if (auto) loopSpin();
+}
+
+
+async function loopSpin() {
+  while (auto) {
+    await spin();
+    await new Promise(r => setTimeout(r, 1200));
+  }
+}
+
+// --- CRATE ---
 async function openCrate(type) {
   try {
-    const res = await fetch(`${API}/open-crate`, {
+    const data = await safeFetch(`${API}/open-crate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type })
     });
-    const data = await res.json();
+
+    if (!data) return;
 
     if (data.error) {
       document.getElementById("result").innerText = data.error;
@@ -256,121 +416,193 @@ async function openCrate(type) {
     }
 
     const rewards = normalizeArray(data, 'rewards');
-    const rewardText = rewards.map(r => `${r.id} (${r.rarity || 'unknown'})`).join("\n") || "No rewards";
+    console.log("CRATE REWARDS:", rewards);
 
-    document.getElementById("result").innerText = `Opened ${type} crate:\n${rewardText}`;
-    if (data.balance !== undefined) {
-      document.getElementById("balance").innerText = `Balance: $${data.balance}`;
+    showCrateAnimation(rewards);
+
+    // 🔥 RARITY SCREEN
+    const highest = rewards.reduce((best, r) => {
+      const order = ["common","rare","epic","legendary"];
+      return order.indexOf(r.rarity) > order.indexOf(best) ? r.rarity : best;
+    }, "common");
+
+    triggerRarityScreen(highest);
+
+    if (rewards.some(r => r.rarity === "legendary")) {
+      triggerLegendary();
     }
 
-    update();
+    // 🔥 WRAP RESULTS (fix layout issues)
+    document.getElementById("result").innerHTML = `
+      <div class="crate-results">
+        ${rewards.map((r, i) => `
+          <div class="card-reveal ${r.rarity}" style="animation-delay:${i * 0.2}s">
+            ?
+          </div>
+        `).join("")}
+      </div>
+    `;
+
+    // 🔥 REVEAL ANIMATION
+    setTimeout(() => {
+      const els = document.querySelectorAll(".card-reveal");
+
+      els.forEach((el, i) => {
+        const r = rewards[i];
+        if (!r) return;
+
+        el.innerText = cleanCardId(r.id);
+        el.classList.add("revealed");
+      });
+    }, 600);
+
+    // 🔥 BALANCE UPDATE
+    if (data.balance !== undefined) {
+      document.getElementById("balance").innerText =
+        `Balance: $${data.balance}`;
+    }
+
+    // 🔥 WAIT before updating UI (CRITICAL)
+    setTimeout(() => {
+      update();
+    }, 1200);
+
   } catch (err) {
-    console.error(err);
-    document.getElementById("result").innerText = "Error opening crate. See console for details.";
+    console.error("Crate error:", err);
   }
 }
 
-// --- UPDATE UI ---
+function triggerRarityScreen(rarity) {
+  const body = document.body;
+
+  body.classList.remove("common","rare","epic","legendary");
+  body.classList.add(rarity);
+
+    setTimeout(() => {
+      body.classList.remove(rarity);
+    }, 1000);
+}
+
+function showCrateAnimation(rewards) {
+  const body = document.body;
+
+  rewards.forEach((r, i) => {
+    setTimeout(() => {
+      body.classList.remove("common", "rare", "epic", "legendary");
+
+      if (r.rarity === "legendary") {
+        body.classList.add("legendary");
+      } else if (r.rarity === "epic") {
+        body.classList.add("epic");
+      } else if (r.rarity === "rare") {
+        body.classList.add("rare");
+      } else {
+        body.classList.add("common");
+      }
+    }, i * 400);
+  });
+
+  setTimeout(() => {
+    body.classList.remove("common", "rare", "epic", "legendary");
+  }, 1500);
+}
+
+// --- UPDATE ---
 async function update() {
-  console.log("CALLING RENDER");
   try {
-    const [invRes, deckRes] = await Promise.all([
-      fetch(`${API}/inventory`),
-      fetch(`${API}/deck`)
+    console.log("Updating UI...");
+    const [invData, deckData] = await Promise.all([
+      safeFetch(`${API}/inventory`),
+      safeFetch(`${API}/deck`)
     ]);
 
-    const invData = await invRes.json();
-    const deckData = await deckRes.json();
+    if (!invData || !deckData) return;
 
-    const inventoryArray = invData.inventory || [];
-    const deckArray = deckData.deck || [];
-
-    console.log("Inventory:", inventoryArray);
-    console.log("Deck:", deckArray);
-
-    renderInventory(inventoryArray);
-    renderDeck(deckArray);
+    renderInventory(invData.inventory || []);
+    renderDeck(normalizeArray(deckData, "deck"));
 
   } catch (err) {
     console.error("Update failed:", err);
   }
 }
+async function resetAccount() {
+  await safeFetch("/api/game/reset-account", { method: "POST" });
+  await loadGame();
+}
+// DEV CARD
+async function devCard(card_id, rarity) {
+  await safeFetch("/api/game/dev-add-card", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ card_id, rarity })
+  });
+  await update();
+}
 
-// --- LOAD GAME ---
+// --- LOAD ---
 async function loadGame() {
   try {
-    const res = await fetch(`${API}/state`);
-    const data = await res.json();
+    const data = await safeFetch(`${API}/state`);
+    if (!data) return;
 
     document.getElementById("balance").innerText =
       `Balance: $${data.balance || 0}`;
 
-    // ❌ REMOVE old JSON rendering
-    // document.getElementById("inventory").innerText = ...
-    // document.getElementById("deck").innerText = ...
-
-    update(); // ✅ this handles rendering now
+    await update();
 
   } catch (err) {
-    console.error("Failed to load game:", err);
+    console.error("Load failed:", err);
   }
 }
-async function replaceDeckSlot(slotIndex, cardId) {
-  try {
-    // get current deck + inventory
-    const [deckData, invData] = await Promise.all([
-      fetch(`${API}/deck`).then(r => r.json()),
-      fetch(`${API}/inventory`).then(r => r.json())
-    ]);
-
-    let deckArray = normalizeArray(deckData, 'deck');
-    const inventoryArray = normalizeArray(invData, 'inventory');
-
-    // 🔥 count how many of this card exist in inventory
-    const ownedCount = inventoryArray.filter(c => c.id === cardId).length;
-
-    // 🔥 count how many already in deck
-    const currentDeckCount = deckArray.filter(c => c === cardId).length;
-
-    // 🔥 if replacing same slot, ignore that slot
-    const isReplacingSameCard = deckArray[slotIndex] === cardId;
-    const adjustedDeckCount = isReplacingSameCard
-      ? currentDeckCount - 1
-      : currentDeckCount;
-
-    if (adjustedDeckCount >= ownedCount) {
-      document.getElementById("result").innerText =
-        `You only own ${ownedCount} copy(s) of ${cardId}`;
-      return;
-    }
-
-    // ✅ allowed → update deck
-    deckArray[slotIndex] = cardId;
-
-    const res = await fetch(`${API}/set-deck`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ newDeck: deckArray })
-    });
-
-    await res.json();
-
-    document.getElementById("result").innerText =
-      `Placed ${cardId} in slot ${slotIndex + 1}`;
-
-    update();
-
-  } catch (err) {
-    console.error("Replace slot failed:", err);
+// --- DEV TOOLS ---
+document.getElementById("dev-add-balance")?.addEventListener("click", async () => {
+  const res = await safeFetch(`${API}/game/add-balance`, { method: "POST" });
+  if (res?.balance !== undefined) {
+    document.getElementById("balance").innerText = `Balance: $${res.balance}`;
+    document.getElementById("dev-result").innerText = "Added $1000 balance!";
   }
-}
-document.addEventListener("DOMContentLoaded", () => {
-  // --- BUTTONS ---
-  document.getElementById("spin-btn").addEventListener("click", spin);
+});
 
-  document.querySelectorAll(".btn-crate").forEach(btn => {
-    btn.addEventListener("click", () => openCrate(btn.dataset.crate));
+// Reset deck to empty slots
+document.getElementById("dev-reset-deck")?.addEventListener("click", async () => {
+  const defaultDeck = [null, null, null]; // 3 empty slots
+  await safeFetch(`${API}/set-deck`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ newDeck: defaultDeck })
   });
+  await update();
+  document.getElementById("dev-result").innerText = "Deck reset!";
+});
+
+// Reset inventory to default cards for dev
+document.getElementById("dev-reset-inventory")?.addEventListener("click", async () => {
+  const defaultInventory = [
+    { id: "wild_symbol", rarity: "epic", count: 2 },
+    { id: "jackpot_boost", rarity: "rare", count: 1 },
+    { id: "mythic_multiplier", rarity: "legendary", count: 1 }
+  ];
+  
+  await safeFetch(`${API}/game/set-inventory`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ inventory: defaultInventory })
+  });
+  
+  await update();
+  document.getElementById("dev-result").innerText = "Inventory reset!";
+});
+
+// --- INIT ---
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("spin-btn").addEventListener("click", spin);
+  document.getElementById("logout-btn")?.addEventListener("click", logout);
+  document.querySelectorAll(".btn-crate").forEach(btn => {
+    btn.addEventListener("click", () =>
+      openCrate(btn.dataset.crate)
+    );
+  });
+
   loadGame();
 });
 

@@ -8,7 +8,7 @@ const cards = [
   { id: "wild_symbol", rarity: "epic", weight: 10 },
   { id: "multiplier_chain", rarity: "epic", weight: 10 },
 
-  { id: "mythic_multiplier", rarity: "mythic", weight: 2 }
+  { id: "mythic_multiplier", rarity: "legendary", weight: 2 }
 ];
 
 function getRandomCard() {
@@ -21,4 +21,4 @@ function getRandomCard() {
   }
 }
 
-module.exports = { getRandomCard };
+module.exports = { cards, getRandomCard };
