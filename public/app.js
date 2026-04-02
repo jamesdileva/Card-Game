@@ -1,6 +1,12 @@
 const API = "/api/game";
 let spinInterval;
-
+let autoSpinActive = false;
+let spinning = false;
+const NUM_REELS = 5;
+let playerXP = 0;
+let playerLevel = 1;
+let payoutBoost = 1.0;
+let xpBoost = 1.0;
 console.log("APP LOADED");
 
 // --- HELPER ---
@@ -37,7 +43,7 @@ async function logout() {
 }
 // ADD BALANCE DEV TOOL 
 async function addBalance() {
-  await safeFetch("/api/game/add-balance", { method: "POST" });
+  await safeFetch(`${API}/add-balance`, { method: "POST" });
   await update(); // 🔥 THIS is what you were missing
 }
 
@@ -228,127 +234,247 @@ async function replaceDeckSlot(slotIndex, cardId) {
   }
 }
 
-// --- SPIN ---
-async function spin() {
+
+// --- SYMBOLS ---
+const symbols = {
+  cherry: "🍒",
+  lemon: "🍋",
+  orange: "🍊",
+  grape: "🍇",
+  clover: "🍀",
+  gem: "💎",
+  diamond: "💎",
+  star: "⭐",
+  crown: "👑",
+  jackpot: "👑"
+};
+
+const getSymbol = s => symbols[String(s).toLowerCase()] || "❓";
+
+// --- AUTO-SPIN TOGGLE ---
+function toggleAutoSpin() {
+  autoSpinActive = !autoSpinActive;
+
+  const btn = document.getElementById("auto-spin-btn");
+  if (btn) btn.classList.toggle("active", autoSpinActive);
+
   const spinBtn = document.getElementById("spin-btn");
-  const reelsEl = document.getElementById("slot-reels");
 
-  spinBtn.disabled = true;
-
-  const balance = parseInt(
-    document.getElementById("balance").innerText.replace(/\D/g, ''),
-    10
-  );
-
-  if (balance < 100) {
-    document.getElementById("result").innerText = "Not enough balance!";
-    spinBtn.disabled = false;
-    return;
-  }
-
-  startSpinAnimation();
-  reelsEl.classList.add("spin-fast");
-
-  try {
-    const data = await safeFetch(`${API}/spin`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bet: 100 })
-    });
-
-    if (!data) {
-      spinBtn.disabled = false;
-      stopSpinAnimation();
-      return;
-    }
-
-    if (data.error) {
-      document.getElementById("result").innerText = data.error;
-      spinBtn.disabled = false;
-      stopSpinAnimation();
-      return;
-    }
-
-    setTimeout(() => {
-      stopSpinAnimation();
-
-      reelsEl.classList.remove("spin-fast");
-      reelsEl.classList.add("spin-slow");
-
-      setTimeout(() => {
-        reelsEl.classList.remove("spin-slow");
-
-        const symbols = {
-          cherry: "🍒", lemon: "🍋", orange: "🍊",
-          grape: "🍇", bar: "🔲", seven: "7️⃣",
-          diamond: "💎", star: "⭐"
-        };
-
-        const getSymbol = s => symbols[s] || "❓";
-        const reels = data.reels;
-
-        reelsEl.innerHTML = `
-          <span id="r1">❓</span>
-          <span id="r2">❓</span>
-          <span id="r3">❓</span>
-        `;
-
-        const r1 = document.getElementById("r1");
-        const r2 = document.getElementById("r2");
-        const r3 = document.getElementById("r3");
-
-        setTimeout(() => {
-          r1.innerText = getSymbol(reels[0]);
-          r1.classList.add("reel-stop");
-        }, 200);
-
-        setTimeout(() => {
-          r2.innerText = getSymbol(reels[1]);
-          r2.classList.add("reel-stop");
-        }, 500);
-
-        setTimeout(() => {
-          r3.innerText = getSymbol(reels[2]);
-          r3.classList.add("reel-stop");
-
-          document.getElementById("balance").innerText =
-            `Balance: $${data.balance}`;
-
-          document.getElementById("result").innerText =
-            `Payout: ${data.payout}`;
-
-          showSpinResultEffect(data.payout);
-          showFloatingWin(data.payout);
-
-          update();
-          spinBtn.disabled = false;
-
-        }, 800);
-
-      }, 400);
-
-    }, 600);
-
-  } catch (err) {
-    console.error(err);
-    spinBtn.disabled = false;
-    stopSpinAnimation();
+  if (autoSpinActive) {
+    if (spinBtn) spinBtn.disabled = true;
+    runAutoSpin();
+  } else {
+    if (spinBtn) spinBtn.disabled = false; //  ALWAYS re-enable
   }
 }
 
-// --- ANIMATIONS ---
+function debugSpin() {
+  const btn = document.getElementById("spin-btn");
+
+  console.log("---- SPIN DEBUG ----");
+  console.log("spinning:", spinning);
+  console.log("autoSpinActive:", autoSpinActive);
+  console.log("button disabled:", btn?.disabled);
+  console.log("balance text:", document.getElementById("balance")?.innerText);
+}
+
+// --- AUTO-SPIN LOOP ---
+async function runAutoSpin() {
+  while (autoSpinActive) {
+    await spin();
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+  }
+}
+
+// --- SPIN FUNCTION ---
+async function spin() {
+  if (spinning) {
+    console.log("⛔ blocked: already spinning");
+    return;
+  }
+
+  const spinBtn = document.getElementById("spin-btn");
+  const reelsEl = document.getElementById("slot-reels");
+  const balanceEl = document.getElementById("balance");
+  const resultEl = document.getElementById("result");
+
+  if (!spinBtn || !reelsEl || !balanceEl) {
+    console.log("❌ missing DOM elements");
+    return;
+  }
+
+  // --- CHECK BALANCE FIRST
+  let balance = parseInt(balanceEl.innerText.replace(/\D/g, ""), 10);
+
+  if (balance < 100) {
+    if (resultEl) resultEl.innerText = "Not enough balance!";
+    console.log("💸 not enough balance");
+    return;
+  }
+
+  // --- LOCK STATE
+  spinning = true;
+  spinBtn.disabled = true;
+
+  console.log("🎰 SPIN START");
+
+  startSpinAnimation();
+
+  try {
+    const res = await fetch("/api/game/spin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bet: 100, deck: currentDeck })
+    });
+
+    const data = await res.json();
+
+    // ✅ HANDLE ERROR FIRST
+    if (!data || data.error) {
+      if (resultEl) resultEl.innerText = data?.error || "Error";
+      console.log("❌ API error:", data);
+      autoSpinActive = false;
+      return;
+    }
+
+    // ✅ SYNC PROGRESSION (NOW SAFE)
+    if (data.xp !== undefined) {
+      playerXP = data.xp;
+      playerLevel = data.level;
+      payoutBoost = data.payoutBoost;
+      updateXPUI();
+    }
+
+    stopSpinAnimation();
+
+    // --- RENDER REELS
+    const reels = data.reels || [];
+    reelsEl.innerHTML = reels.map((_, i) => `<span id="r${i+1}">❓</span>`).join("");
+
+    for (let i = 0; i < reels.length; i++) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+      const el = document.getElementById(`r${i+1}`);
+      if (el) el.innerText = getSymbol(reels[i]);
+    }
+
+   // --- UPDATE UI
+    balanceEl.innerText = `Balance: $${data.balance}`;
+
+    let lines = [];
+
+    // 💰 BASE RESULT
+    lines.push(`💰 Payout: ${data.payout}`);
+
+    // 🎴 DECK EFFECTS
+    if (data.effects) {
+      if (data.effects.payoutMult > 1) {
+        lines.push(`💰 Deck x${data.effects.payoutMult.toFixed(2)}`);
+      }
+
+      if (data.effects.xpMult > 1) {
+        lines.push(`⚡ XP x${data.effects.xpMult.toFixed(2)}`);
+      }
+
+      if (data.effects.luck > 1) {
+        let luckText = "🍀 Luck Boost";
+
+        if (data.effects.luck >= 1.5) luckText = "🍀 Lucky!";
+        if (data.effects.luck >= 2) luckText = "🍀 Super Lucky!";
+        if (data.effects.luck >= 3) luckText = "🍀 INSANE LUCK";
+
+        lines.push(`${luckText} (x${data.effects.luck.toFixed(2)})`);
+      }
+
+      if (data.effects.rerollChance > 0) {
+        lines.push(`🔁 Reroll ${(data.effects.rerollChance * 100).toFixed(0)}%`);
+      }
+    }
+
+    // ⚡ EVENT
+    if (data.event) {
+      lines.push(data.event.label);
+    }
+
+    // 🔥 STREAK
+    if (data.streak && data.streak > 1) {
+      lines.push(`🔥 Streak x${data.streak}`);
+    }
+
+    // 🧠 FINAL RENDER
+    if (resultEl) {
+      resultEl.innerText = lines.join(" | ");
+    }
+
+    // --- 🎉 WIN EFFECTS (ONLY ONCE)
+    if (data.payout > 0) {
+      showFloatingWin(data.payout);
+    }
+
+    // ⚡ FLASH EFFECTS
+    if (data.event?.type === "DOUBLE_PAYOUT") {
+      document.body.classList.add("gold-flash");
+    }
+
+    if (data.event?.type === "DOUBLE_XP") {
+      document.body.classList.add("blue-flash");
+    }
+
+    if (data.event?.type === "LUCK_SURGE") {
+      document.body.classList.add("green-flash");
+    }
+
+    setTimeout(() => {
+      document.body.classList.remove("gold-flash", "blue-flash", "green-flash");
+    }, 500);
+    showSpinResultEffect(data.payout);
+
+    console.log("✅ SPIN SUCCESS", data);
+
+  } catch (err) {
+    console.error("🔥 Spin crash:", err);
+    stopSpinAnimation();
+    autoSpinActive = false;
+  } finally {
+    spinning = false;
+
+    if (!autoSpinActive) {
+      spinBtn.disabled = false;
+    }
+
+    console.log("🔄 spin reset", {
+      spinning,
+      disabled: spinBtn.disabled,
+      autoSpinActive
+    });
+  }
+
+  debugSpin();
+}
+
+// --- SPIN ANIMATION ---
 function startSpinAnimation() {
-  const fake = ["🍒","🍋","🍊","🍇","🔲","7️⃣","💎","⭐"];
+  const fake = ["🍒","🍋","🍊","🍇","💎","⭐","👑","🔲"];
+  const reelsEl = document.getElementById("slot-reels");
+  if (!reelsEl) return;
+
   spinInterval = setInterval(() => {
-    const r = Array.from({ length: 3 },
-      () => fake[Math.floor(Math.random() * fake.length)]
+    const r = Array.from({ length: NUM_REELS }, () =>
+      fake[Math.floor(Math.random() * fake.length)]
     );
-    document.getElementById("slot-reels").innerText = r.join(" ");
+    reelsEl.innerText = r.join(" ");
   }, 100);
 }
 
 function stopSpinAnimation() {
   clearInterval(spinInterval);
+}
+
+
+
+// --- UPDATE CURRENT DECK ---
+function updateCurrentDeck(deckArray) {
+  currentDeck = deckArray.map(c => c?.id).filter(Boolean);
 }
 
 // --- FLOATING WIN ---
@@ -382,21 +508,6 @@ function showSpinResultEffect(payout) {
     body.classList.remove("win", "lose");
     document.getElementById("slot-reels").classList.remove("big-win");
   }, 1000);
-}
-let auto = false;
-
-function autoSpin() {
-  auto = !auto;
-
-  if (auto) loopSpin();
-}
-
-
-async function loopSpin() {
-  while (auto) {
-    await spin();
-    await new Promise(r => setTimeout(r, 1200));
-  }
 }
 
 // --- CRATE ---
@@ -508,25 +619,33 @@ function showCrateAnimation(rewards) {
 }
 
 // --- UPDATE ---
+let currentDeck = [];
+
 async function update() {
-  try {
-    console.log("Updating UI...");
-    const [invData, deckData] = await Promise.all([
-      safeFetch(`${API}/inventory`),
-      safeFetch(`${API}/deck`)
-    ]);
+  const [invData, deckData] = await Promise.all([
+    safeFetch(`${API}/inventory`),
+    safeFetch(`${API}/deck`)
+  ]);
 
-    if (!invData || !deckData) return;
+  if (!invData || !deckData) return;
 
-    renderInventory(invData.inventory || []);
-    renderDeck(normalizeArray(deckData, "deck"));
+  renderInventory(invData.inventory || []);
+  renderDeck(normalizeArray(deckData, "deck"));
 
-  } catch (err) {
-    console.error("Update failed:", err);
-  }
+  currentDeck = normalizeArray(deckData, "deck").map(c => c?.id).filter(Boolean);
 }
+
+function triggerLegendary(){
+
+  
+}
+
+async function loadProgression() {
+  // placeholder for now
+}
+
 async function resetAccount() {
-  await safeFetch("/api/game/reset-account", { method: "POST" });
+  await safeFetch("${API}/dev-reset", { method: "POST" });
   await loadGame();
 }
 // DEV CARD
@@ -545,6 +664,17 @@ async function loadGame() {
     const data = await safeFetch(`${API}/state`);
     if (!data) return;
 
+    // ✅ SET VALUES FIRST
+    payoutBoost = data.payoutBoost || 1;
+    xpBoost = data.xpBoost || 1;
+
+    playerXP = data.xp || 0;
+    playerLevel = data.level || 1;
+
+    // ✅ UPDATE UI
+    updateUpgradeUI();
+    updateXPUI();
+
     document.getElementById("balance").innerText =
       `Balance: $${data.balance || 0}`;
 
@@ -554,55 +684,203 @@ async function loadGame() {
     console.error("Load failed:", err);
   }
 }
-// --- DEV TOOLS ---
-document.getElementById("dev-add-balance")?.addEventListener("click", async () => {
-  const res = await safeFetch(`${API}/game/add-balance`, { method: "POST" });
-  if (res?.balance !== undefined) {
-    document.getElementById("balance").innerText = `Balance: $${res.balance}`;
-    document.getElementById("dev-result").innerText = "Added $1000 balance!";
-  }
-});
-
-// Reset deck to empty slots
-document.getElementById("dev-reset-deck")?.addEventListener("click", async () => {
-  const defaultDeck = [null, null, null]; // 3 empty slots
-  await safeFetch(`${API}/set-deck`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ newDeck: defaultDeck })
-  });
-  await update();
-  document.getElementById("dev-result").innerText = "Deck reset!";
-});
-
-// Reset inventory to default cards for dev
-document.getElementById("dev-reset-inventory")?.addEventListener("click", async () => {
-  const defaultInventory = [
-    { id: "wild_symbol", rarity: "epic", count: 2 },
-    { id: "jackpot_boost", rarity: "rare", count: 1 },
-    { id: "mythic_multiplier", rarity: "legendary", count: 1 }
-  ];
-  
-  await safeFetch(`${API}/game/set-inventory`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ inventory: defaultInventory })
-  });
-  
-  await update();
-  document.getElementById("dev-result").innerText = "Inventory reset!";
-});
-
-// --- INIT ---
 document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("spin-btn").addEventListener("click", spin);
-  document.getElementById("logout-btn")?.addEventListener("click", logout);
+  // Spin button
+  const spinBtn = document.getElementById("spin-btn");
+  if (spinBtn) spinBtn.addEventListener("click", spin);
+
+  // Auto-spin button
+  const autoSpinBtn = document.getElementById("auto-spin-btn");
+  if (autoSpinBtn) autoSpinBtn.addEventListener("click", toggleAutoSpin);
+
+  // Logout
+  const logoutBtn = document.getElementById("logout-btn");
+  if (logoutBtn) logoutBtn.addEventListener("click", logout);
+
+  // Crate buttons
   document.querySelectorAll(".btn-crate").forEach(btn => {
-    btn.addEventListener("click", () =>
-      openCrate(btn.dataset.crate)
-    );
+    btn.addEventListener("click", () => openCrate(btn.dataset.crate));
+  });
+  // Store button
+  document.getElementById("store-btn")?.addEventListener("click", () => {
+  document.getElementById("store-panel").classList.toggle("hidden");
+  });
+  // Dev tools (if any)
+  document.getElementById("dev-add-balance")?.addEventListener("click", async () => {
+    const res = await safeFetch(`${API}/add-balance`, { method: "POST" });
+    if (res?.balance !== undefined) {
+      document.getElementById("balance").innerText = `Balance: $${res.balance}`;
+      document.getElementById("result").innerText = "Added $10,000 💰";
+    }
+  });
+    // RESET DECK
+  document.getElementById("dev-reset-deck")?.addEventListener("click", async () => {
+    const emptyDeck = [null, null, null];
+    await safeFetch(`${API}/set-deck`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ newDeck: emptyDeck })
+    });
+    await update();
+    document.getElementById("result").innerText = "Deck cleared 🧹";
+  });
+      //    BUTTON FOR SHOP
+  document.getElementById("upgrade-payout-btn")?.addEventListener("click", async () => {
+    const res = await fetch("/api/game/upgrade/payout", { method: "POST" });
+    if (!res.ok) {
+      console.error("Upgrade failed");
+      return;
+    }
+    const data = await res.json();
+    if (data.error) {
+      alert(data.error);
+      return;
+    }
+    payoutBoost = data.payoutBoost;
+    document.getElementById("balance").innerText = `Balance: $${data.balance}`;
+    updateUpgradeUI(); // 🔥 THIS FIXES TEXT NOT UPDATING
   });
 
+        // XP SHOP UPGRADE
+    document.getElementById("upgrade-xp-btn")?.addEventListener("click", async () => {
+      const res = await fetch("/api/game/upgrade/xp", { method: "POST" });
+
+      if (!res.ok) {
+        console.error("Upgrade failed");
+        return;
+      }
+
+      const data = await res.json();
+
+      if (data.error) {
+        alert(data.error);
+        return;
+      }
+
+      xpBoost = data.xpBoost;
+
+      document.getElementById("balance").innerText = `Balance: $${data.balance}`;
+
+      updateUpgradeUI();
+    });
+
+  // RESET ACCOUNT BUTTON
+  document.getElementById("dev-clear-inventory")?.addEventListener("click", async () => {
+    await safeFetch(`${API}/reset-account`, { method: "POST" });
+    await update();
+    document.getElementById("result").innerText = "Inventory cleared 🧹";
+  });
+
+  // Load initial game state
   loadGame();
 });
+// XP UPDATER 
+function updateXPUI() {
+  console.log("📊 XP UPDATE", {
+    xp: playerXP,
+    level: playerLevel,
+    xpBoost: xpBoost
+  });
 
+  const xpEl = document.getElementById("xp");
+  const levelEl = document.getElementById("level");
+
+  if (xpEl) xpEl.innerText = `XP: ${playerXP}`;
+  if (levelEl) levelEl.innerText = `Level: ${playerLevel}`;
+}
+function calculateDeckEffects(deck) {
+  let effects = {
+    payoutMult: 1,
+    xpMult: 1,
+    luck: 1,
+    bonusPayout: 0,
+    rerollChance: 0
+  };
+
+  const counts = {};
+
+  deck.forEach(id => {
+    if (!id) return;
+    counts[id] = (counts[id] || 0) + 1;
+  });
+
+  for (const [card, count] of Object.entries(counts)) {
+
+    // 🍀 lucky_charm → increases luck (future events)
+    if (card === "lucky_charm") {
+      effects.luck += 0.25 * count;
+    }
+
+    // 🔁 reroll → chance to reroll bad spins
+    if (card === "reroll") {
+      effects.rerollChance += 0.15 * count;
+    }
+
+    // 💰 double_down → increases payout
+    if (card === "double_down") {
+      effects.payoutMult += 0.3 * count;
+    }
+
+    // 🎯 jackpot_boost → boosts high wins
+    if (card === "jackpot_boost") {
+      effects.payoutMult += 0.5 * count;
+    }
+
+    // 🌀 wild_symbol → flat payout bonus
+    if (card === "wild_symbol") {
+      effects.bonusPayout += 100 * count;
+    }
+
+    // 🔗 multiplier_chain → scaling multiplier
+    if (card === "multiplier_chain") {
+      effects.payoutMult += 0.2 * count;
+      effects.xpMult += 0.2 * count;
+    }
+
+    // 🔥 mythic_multiplier → BIG effect
+    if (card === "mythic_multiplier") {
+      effects.payoutMult += 1.0 * count;
+      effects.xpMult += 0.5 * count;
+    }
+  }
+
+  return effects;
+}
+function updateUpgradeUI() {
+  const payoutEl = document.getElementById("payout-boost-text");
+  const xpEl = document.getElementById("xp-boost-text");
+
+  if (payoutEl) payoutEl.innerText = `x${payoutBoost.toFixed(1)}`;
+  if (xpEl) xpEl.innerText = `x${xpBoost.toFixed(1)}`;
+}
+
+function showDeckEffects(effects) {
+  const resultEl = document.getElementById("result");
+  if (!resultEl) return;
+
+  let text = [];
+
+  if (effects.payoutMult > 1) {
+    text.push(`💰 x${effects.payoutMult.toFixed(2)}`);
+  }
+
+  if (effects.xpMult > 1) {
+    text.push(`⚡ x${effects.xpMult.toFixed(2)}`);
+  }
+
+  if (effects.bonusPayout > 0) {
+    text.push(`➕ +${effects.bonusPayout}`);
+  }
+
+  if (effects.rerollChance > 0) {
+    text.push(`🔁 reroll chance`);
+  }
+
+  if (effects.luck > 1) {
+    text.push(`🍀 luck`);
+  }
+
+  if (text.length > 0) {
+    resultEl.innerText += " | " + text.join(" | ");
+  }
+}

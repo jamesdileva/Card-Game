@@ -9,6 +9,17 @@ body {
   transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
 
+#store-panel {
+  margin-top: 20px;
+  padding: 15px;
+  background: #222;
+  border-radius: 10px;
+}
+
+.hidden {
+  display: none;
+}
+
 .game-container {
   max-width: 900px;
   margin: 40px auto;
@@ -472,4 +483,34 @@ body.legendary {
 #slot-reels span {
   display: inline-block;
   width: 50px;
+}
+
+.gold-flash {
+  animation: goldFlash 0.5s ease;
+}
+
+.blue-flash {
+  animation: blueFlash 0.5s ease;
+}
+
+.green-flash {
+  animation: greenFlash 0.5s ease;
+}
+
+@keyframes goldFlash {
+  0%   { background-color: rgba(255, 215, 0, 0.0); }
+  50%  { background-color: rgba(255, 215, 0, 0.4); }
+  100% { background-color: rgba(255, 215, 0, 0.0); }
+}
+
+@keyframes blueFlash {
+  0%   { background-color: rgba(0, 150, 255, 0.0); }
+  50%  { background-color: rgba(0, 150, 255, 0.4); }
+  100% { background-color: rgba(0, 150, 255, 0.0); }
+}
+
+@keyframes greenFlash {
+  0%   { background-color: rgba(0, 255, 120, 0.0); }
+  50%  { background-color: rgba(0, 255, 120, 0.4); }
+  100% { background-color: rgba(0, 255, 120, 0.0); }
 }

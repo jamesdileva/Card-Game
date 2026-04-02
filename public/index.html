@@ -10,19 +10,27 @@
   <div class="game-container">
 
     <header>🎰 Card Slot Game</header>
-
-    <!-- ✅ Top bar -->
+    <!-- XP PROGRESSION UI-->
+    <div id="level">Level: 1</div>
+    <div id="xp">XP: 0</div>
+    <!-- Top bar -->
     <div style="display:flex; justify-content:space-between; align-items:center;">
       <div id="balance">Balance: $0</div>
-      <button id="logout-btn">Logout</button>
-      <button onclick="addBalance()">+10K Dev</button>
+      <button id="store-btn">Store 🛒</button>
+      <div>
+        <button id="spin-btn" class="btn btn-spin">Spin</button>
+        <button id="auto-spin-btn">Auto Spin 🔁</button>
+        <button id="logout-btn">Logout</button>
+      </div>
     </div>
 
     <!-- Slot Machine -->
-    <div class="slot-section">
-      <div id="slot-reels">❓ ❓ ❓</div>
-      <button class="btn btn-spin" id="spin-btn">Spin (100)</button>
-      <button class="btn" onclick="autoSpin()">Auto Spin</button>
+    <div id="slot-reels">
+      <span id="r1">❓</span>
+      <span id="r2">❓</span>
+      <span id="r3">❓</span>
+      <span id="r4">❓</span>
+      <span id="r5">❓</span>
     </div>
 
     <!-- Crates -->
@@ -43,13 +51,31 @@
     <!-- Inventory -->
     <h2>Inventory</h2>
     <div id="inventory"></div>
+    <div id="store-panel" class="hidden">
+    <h2>🛒 Upgrade Shop</h2>
+
+    <button id="upgrade-payout-btn">
+      Payout Boost (<span id="payout-boost-text">x1.0</span>) - $1000
+    </button>
+
+    <button id="upgrade-xp-btn">
+      XP Boost (<span id="xp-boost-text">x1.0</span>) - $1000
+    </button>
+  </div>
+    <!-- DEV TOOLS -->
+    <h2>Dev Tools</h2>
+    <div style="margin-top:20px;">
+      <button id="dev-add-balance">+10K 💰</button>
+      <button id="dev-reset-deck">Reset Deck 🔄</button>
+      <button id="dev-clear-inventory">Reset ALL 🧹</button>
+      <button onclick="devCard('mythic_multiplier','legendary')">+Legendary</button>
+    </div>
+
+    <!-- Dev output -->
+    <div id="dev-result" style="margin-top:10px; color:gold;"></div>
 
   </div>
-<div style="margin-top:20px;">
-  <button onclick="addBalance()">+10K 💰</button>
-  <button onclick="resetAccount()">Reset 🔄</button>
-  <button onclick="devCard('mythic_multiplier','legendary')">+Legendary</button>
-</div>
+
   <script src="app.js" defer></script>
 </body>
 </html>

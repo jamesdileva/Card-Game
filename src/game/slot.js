@@ -21,36 +21,36 @@ function calculatePayout(reels, bet) {
   return 0;
 }
 
-exports.spinSlot = (bet) => {
-  const reels = [rollSymbol(), rollSymbol(), rollSymbol()];
-  const payout = calculatePayout(reels, bet);
+exports.spinSlot = (bet, deck = []) => {
+  console.log("🎴 DECK:", deck);
 
-  return { reels, payout };
-};
-
-exports.spinSlot = (bet, deck) => {
   let reels = [rollSymbol(), rollSymbol(), rollSymbol()];
 
-  // 🎴 apply deck effects
+  // 🎴 LUCKY CHARM (reroll bad symbols)
   if (deck.includes("lucky_charm")) {
-    // reroll one bad symbol randomly
     for (let i = 0; i < reels.length; i++) {
-      if (reels[i] === "cherry" || reels[i] === "lemon") {
-        if (Math.random() < 0.2) {
-          reels[i] = rollSymbol();
-        }
+      if (["cherry","lemon"].includes(reels[i]) && Math.random() < 0.2) {
+        console.log("🍀 Lucky Charm rerolling", reels[i]);
+        reels[i] = rollSymbol();
       }
     }
   }
 
+  // 💰 BASE PAYOUT
   let payout = calculatePayout(reels, bet);
 
-  // double down card
+  // 💥 DOUBLE DOWN
   if (deck.includes("double_down") && payout > 0) {
     if (Math.random() < 0.1) {
+      console.log("💥 DOUBLE DOWN TRIGGERED");
       payout *= 2;
     }
   }
+
+  console.log("🎰 SPIN RESULT:", {
+    reels,
+    payout
+  });
 
   return { reels, payout };
 };

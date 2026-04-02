@@ -33,6 +33,36 @@ async function requireLogin(req, res) {
   return true;
 }
 
+// XP progression system
+function xpToNext(level) {
+  return level * 100;
+}
+
+function applyXP(player, xpGain) {
+  player.xp += xpGain;
+
+  while (player.xp >= xpToNext(player.level)) {
+    player.xp -= xpToNext(player.level);
+    player.level++;
+  }
+}
+// RANDOM EVENTS
+function rollRandomEvent() {
+  if (Math.random() > 0.15) return null; // 15% chance
+
+  const roll = Math.random();
+
+  if (roll < 0.33) {
+    return { type: "DOUBLE_PAYOUT", mult: 2, label: "💰 DOUBLE PAYOUT" };
+  } 
+  else if (roll < 0.66) {
+    return { type: "DOUBLE_XP", mult: 2, label: "⚡ DOUBLE XP" };
+  } 
+  else {
+    return { type: "LUCK_BOOST", luck: 0.5, label: "🍀 LUCK SURGE" };
+  }
+}
+
 // --- INIT TABLES ---
 (async () => {
   await pool.query(`
@@ -185,10 +215,43 @@ router.post("/reset-account", async (req, res) => {
 
   if (!userId) return res.status(401).json({ error: "Not logged in" });
 
+  // 🔥 CLEAR INVENTORY
   await pool.query("DELETE FROM inventory WHERE user_id=$1", [userId]);
-  await pool.query("UPDATE users SET balance = 1000 WHERE id=$1", [userId]);
 
-  await pool.query("UPDATE deck SET card_id = NULL WHERE user_id=$1", [userId]);
+  // 🔥 RESET BALANCE
+  await pool.query(
+    "UPDATE users SET balance = 1000 WHERE id=$1",
+    [userId]
+  );
+
+  // 🔥 RESET DECK
+  await pool.query(
+    "UPDATE deck SET card_id = NULL WHERE user_id=$1",
+    [userId]
+  );
+
+  // ✅ VERIFY (REAL DEBUG)
+  const check = await pool.query(
+    "SELECT * FROM inventory WHERE user_id=$1",
+    [userId]
+  );
+
+  console.log("AFTER DELETE:", check.rows); // should be []
+
+  res.json({ success: true });
+});
+
+router.post("/clear-inventory", async (req, res) => {
+  const userId = req.session.userId;
+
+  if (!userId) {
+    return res.status(401).json({ error: "Not logged in" });
+  }
+
+  await pool.query(
+    "DELETE FROM inventory WHERE user_id = $1",
+    [userId]
+  );
 
   res.json({ success: true });
 });
@@ -220,6 +283,8 @@ router.post("/add-balance", async (req, res) => {
     res.status(500).json({ error: "Failed to add balance" });
   }
 });
+
+
 
 router.get("/deck", async (req, res) => {
   if (!(await requireLogin(req, res))) return;
@@ -315,50 +380,424 @@ router.post("/set-deck", async (req, res) => {
   res.json({ status: "ok" });
 });
 
+function calculateDeckEffects(deck) {
+  const effects = {
+    payoutMult: 1,
+    xpMult: 1,
+    rerollChance: 0,
+    luck: 1
+  };
 
+  deck.forEach(cardId => {
+    switch (cardId) {
+      case "lucky_charm":
+        effects.luck += 0.1;
+        break;
 
+      case "reroll":
+        effects.rerollChance += 0.25;
+        break;
+
+      case "double_down":
+        effects.payoutMult += 0.5;
+        break;
+
+      case "jackpot_boost":
+        effects.payoutMult += 1.0;
+        break;
+
+      case "wild_symbol":
+        effects.luck += 0.3;
+        break;
+
+      case "multiplier_chain":
+        effects.payoutMult += 0.2;
+        break;
+
+      case "mythic_multiplier":
+        effects.payoutMult += 2.0;
+        break;
+    }
+  });
+
+  return effects;
+}
+// CARD SYNERGIES
+function calculateSynergies(deck, effects) {
+  const d = deck || [];
+
+  // 🎴 SYNERGY: lucky_charm + jackpot_boost
+  if (d.includes("lucky_charm") && d.includes("jackpot_boost")) {
+    effects.payoutMult *= 1.5;
+    effects.luck += 0.1;
+
+    effects.synergies = effects.synergies || [];
+    effects.synergies.push("🍀 Lucky Jackpot");
+  }
+
+  // 🎴 SYNERGY: reroll + multiplier_chain
+  if (d.includes("reroll") && d.includes("multiplier_chain")) {
+    effects.rerollChance += 0.2;
+    effects.payoutMult *= 1.3;
+
+    effects.synergies = effects.synergies || [];
+    effects.synergies.push("🔁 Chain Reroll");
+  }
+
+  // 🎴 SYNERGY: double_down + mythic_multiplier
+  if (d.includes("double_down") && d.includes("mythic_multiplier")) {
+    effects.payoutMult *= 2;
+
+    effects.synergies = effects.synergies || [];
+    effects.synergies.push("💥 Mythic Double");
+  }
+  // --- 🔥 SYNERGIES ---
+  const count = {};
+  deck.forEach(card => {
+    count[card] = (count[card] || 0) + 1;
+  });
+
+  // 🎯 TRIPLE SYNERGIES
+  if (count["mythic_multiplier"] >= 3) {
+    effects.payoutMult += 7; // HUGE spike
+    effects.luck += 0.2;
+    console.log("🔥 SYNERGY: TRIPLE MYTHIC");
+  }
+
+  if (count["lucky_charm"] >= 2) {
+    effects.rerollChance += 0.3;
+    console.log("🍀 SYNERGY: LUCKY CHARM PAIR");
+  }
+
+  if (count["reroll"] >= 2) {
+    effects.rerollChance += 0.5;
+    console.log("🔁 SYNERGY: REROLL STACK");
+  }
+
+  // 🧪 MIXED SYNERGY
+  if (count["lucky_charm"] && count["reroll"]) {
+    effects.rerollChance += 0.25;
+    effects.luck += 0.2;
+    console.log("✨ SYNERGY: LUCK + REROLL");
+  }
+  return effects;
+}
+
+// SPIN
 router.post("/spin", async (req, res) => {
   if (!(await requireLogin(req, res))) return;
 
-  const { bet = 100 } = req.body;
+  const { bet = 100, deck = [] } = req.body;
 
-const balRes = await pool.query(
-  "SELECT balance FROM users WHERE id=$1",
-  [req.session.userId]
-);
-
-if (balRes.rows.length === 0) {
-  return res.status(401).json({ error: "User not found" });
-}
-
-let balance = balRes.rows[0].balance;
-
-  if (balance < bet)
-    return res.json({ error: "Not enough balance" });
-
-  const symbols = ["cherry","lemon","orange","grape","bar","seven","diamond","star"];
-  const reels = [0,1,2].map(() => symbols[Math.floor(Math.random()*symbols.length)]);
-  const almostWin = Math.random() < 0.25;
-
-  if (almostWin) {
-    const symbol = symbols[Math.floor(Math.random()*symbols.length)];
-    reels[0] = symbol;
-    reels[1] = symbol;
-    reels[2] = symbols[Math.floor(Math.random()*symbols.length)];
-  }
-  let payout = 0;
-
-  if (new Set(reels).size === 1) payout = 500;
-  else if (new Set(reels).size === 2) payout = 200;
-
-  balance = balance - bet + payout;
-
-  await pool.query(
-    "UPDATE users SET balance=$1 WHERE id=$2",
-    [balance, req.session.userId]
+  // --- GET USER ---
+  const userRes = await pool.query(
+    "SELECT balance, xp, level, payout_boost, xp_boost, win_streak FROM users WHERE id=$1",
+    [req.session.userId]
   );
 
-  res.json({ reels, payout, balance });
+  if (userRes.rows.length === 0) {
+    return res.status(401).json({ error: "User not found" });
+  }
+
+  let user = userRes.rows[0];
+
+  if (user.balance < bet) {
+    return res.json({ error: "Not enough balance" });
+  }
+
+  // --- SYMBOLS ---
+  const symbols = ["cherry","lemon","orange","grape","clover","gem","star","crown"];
+
+  // --- 🎴 DECK EFFECTS ---
+  const effects = calculateDeckEffects(deck);
+
+  // --- 🎴 CARD SYNERGY ---
+  calculateSynergies(deck, effects);
+
+  // --- ⚡ RANDOM EVENT ---
+  let event = rollRandomEvent();
+
+  if (event) {
+    console.log("⚡ EVENT TRIGGERED:", event);
+
+    if (event.type === "DOUBLE_PAYOUT") {
+      effects.payoutMult *= event.mult;
+    }
+
+    if (event.type === "DOUBLE_XP") {
+      effects.xpMult *= event.mult;
+    }
+
+    if (event.type === "LUCK_BOOST") {
+      effects.luck += event.luck;
+    }
+  }
+
+  // --- DEBUG ---
+  console.log("🎴 DECK INPUT:", deck);
+  console.log("✨ EFFECTS:", effects);
+
+  // --- 🎰 SPIN REELS ---
+  let reels = Array.from({ length: 5 }, () =>
+    symbols[Math.floor(Math.random() * symbols.length)]
+  );
+
+  console.log("🎰 INITIAL REELS:", reels);
+
+  // --- 💰 BASE PAYOUT ---
+  let payout = 0;
+  let unique = new Set(reels).size;
+
+  if (unique === 1) payout = 1000;
+  else if (unique === 2) payout = 500;
+  else if (unique === 3) payout = 200;
+
+  console.log("💰 BASE PAYOUT:", payout);
+
+  // --- 🔁 REROLL BAD SPINS ---
+  if (payout === 0 && Math.random() < effects.rerollChance) {
+    console.log("🔁 REROLL TRIGGERED", {
+      chance: effects.rerollChance
+    });
+
+    reels = Array.from({ length: 5 }, () =>
+      symbols[Math.floor(Math.random() * symbols.length)]
+    );
+
+    console.log("🎰 REROLLED REELS:", reels);
+
+    unique = new Set(reels).size;
+
+    if (unique === 1) payout = 1000;
+    else if (unique === 2) payout = 500;
+    else if (unique === 3) payout = 200;
+
+    console.log("💰 REROLL PAYOUT:", payout);
+  }
+
+  // --- 💰 APPLY DECK MULTIPLIER ---
+  const deckAdjustedPayout = Math.floor(payout * effects.payoutMult);
+
+  // --- 💎 APPLY PLAYER BOOST ---
+  const boostedPayout = Math.floor(deckAdjustedPayout * user.payout_boost);
+
+  console.log("💰 PAYOUT BREAKDOWN:", {
+    base: payout,
+    deckMult: effects.payoutMult,
+    afterDeck: deckAdjustedPayout,
+    playerBoost: user.payout_boost,
+    final: boostedPayout
+  });
+
+  // --- FINAL BALANCE ---
+  const newBalance = user.balance - bet + boostedPayout;
+
+  // STREAK SYSTEM
+  // --- 🔥 STREAK SYSTEM (FIXED) ---
+  let currentStreak = Number(user.win_streak) || 0;
+
+  let newStreak = payout > 0 ? currentStreak + 1 : 0;
+
+  // streak bonus scaling
+  let streakBonus = 1 + (newStreak * 0.05);
+
+  // apply bonus AFTER boosts
+  let finalPayout = Math.floor(boostedPayout * streakBonus);
+
+  console.log("🔥 STREAK DEBUG:", {
+    previous: currentStreak,
+    new: newStreak,
+    bonus: streakBonus,
+    payoutBefore: boostedPayout,
+    payoutAfter: finalPayout
+  });
+  // ---  XP SYSTEM ---
+  let xpGain = 5;
+
+  if (payout > 0) xpGain += 10;
+  if (payout >= 500) xpGain += 25;
+
+  console.log("⭐ BASE XP:", xpGain);
+
+  // apply deck XP boost
+  xpGain = Math.floor(xpGain * effects.xpMult);
+
+  // apply player XP boost
+  xpGain = Math.floor(xpGain * user.xp_boost);
+
+  console.log("⭐ FINAL XP GAIN:", xpGain);
+
+  let newXP = user.xp + xpGain;
+  let newLevel = user.level;
+
+  // --- LEVEL SYSTEM ---
+  let xpNeeded = newLevel * 100;
+
+  while (newXP >= xpNeeded) {
+    newXP -= xpNeeded;
+    newLevel++;
+    xpNeeded = newLevel * 100;
+  }
+  // DEBUG
+  console.log("📈 LEVEL UPDATE:", {
+    newXP,
+    newLevel
+  });
+  console.log("🧠 FINAL PIPELINE:", {
+    reels,
+    basePayout: payout,
+    deckMult: effects.payoutMult,
+    afterDeck: payout,
+    playerBoost: user.payout_boost,
+    afterPlayer: boostedPayout,
+    streak: newStreak,
+    final: finalPayout
+  });
+
+
+  // --- SAVE ---
+  await pool.query(
+    `UPDATE users 
+     SET balance=$1, xp=$2, level=$3 
+     WHERE id=$4`,
+    [newBalance, newXP, newLevel, req.session.userId]
+  );
+  await pool.query(
+  `UPDATE users 
+   SET balance=$1, xp=$2, level=$3, win_streak=$4 
+   WHERE id=$5`,
+  [newBalance, newXP, newLevel, newStreak, req.session.userId]
+);
+
+  // --- RESPONSE ---
+  res.json({
+    reels,
+    payout: finalPayout,
+    balance: newBalance,
+    xp: newXP,
+    level: newLevel,
+    payoutBoost: user.payout_boost,
+    xpBoost: user.xp_boost,
+    effects,
+    event,
+    newStreak
+  });
+});
+  
+// --- UPGRADE: PAYOUT BOOST ---
+router.post("/upgrade/payout", async (req, res) => {
+  if (!(await requireLogin(req, res))) return;
+
+  const userId = req.session.userId;
+
+  const result = await pool.query(
+    "SELECT balance, payout_boost FROM users WHERE id=$1",
+    [userId]
+  );
+
+  const user = result.rows[0];
+
+  const cost = 1000;
+
+  if (user.balance < cost) {
+    return res.json({ error: "Not enough money" });
+  }
+
+  const newBoost = parseFloat(user.payout_boost) + 0.1;
+  const newBalance = user.balance - bet + finalPayoutWithStreak;
+
+  await pool.query(
+    "UPDATE users SET balance=$1, payout_boost=$2 WHERE id=$3",
+    [newBalance, newBoost, userId]
+  );
+
+  res.json({
+    success: true,
+    balance: newBalance,
+    payoutBoost: newBoost
+  });
+});
+
+
+// --- UPGRADE: XP BOOST ---
+router.post("/upgrade/xp", async (req, res) => {
+  if (!(await requireLogin(req, res))) return;
+
+  const userId = req.session.userId;
+
+  const result = await pool.query(
+    "SELECT balance, xp_boost FROM users WHERE id=$1",
+    [userId]
+  );
+
+  const user = result.rows[0];
+
+  const cost = 1000;
+
+  if (user.balance < cost) {
+    return res.json({ error: "Not enough money" });
+  }
+
+  const newBoost = parseFloat(user.xp_boost || 1) + 0.2;
+  const newBalance = user.balance - cost;
+
+  await pool.query(
+    "UPDATE users SET balance=$1, xp_boost=$2 WHERE id=$3",
+    [newBalance, newBoost, userId]
+  );
+
+  res.json({
+    success: true,
+    balance: newBalance,
+    xpBoost: newBoost
+  });
+});
+
+router.get("/progression", async (req, res) => {
+  const userId = req.session.userId;
+
+  const { rows } = await db.query(
+    "SELECT xp, level, payout_boost FROM users WHERE id=$1",
+    [userId]
+  );
+
+  const player = rows[0];
+
+  res.json({
+    xp: player.xp,
+    level: player.level,
+    payoutBoost: player.payout_boost
+  });
+});
+
+router.post("/buy-upgrade", async (req, res) => {
+  const userId = req.session.userId;
+
+  const { rows } = await db.query(
+    "SELECT balance, payout_boost FROM users WHERE id=$1",
+    [userId]
+  );
+
+  const player = rows[0];
+
+  const cost = 1000;
+
+  if (player.balance < cost) {
+    return res.json({ error: "Not enough money" });
+  }
+
+  player.balance -= cost;
+  player.payout_boost += 0.1;
+
+  await db.query(
+    "UPDATE users SET balance=$1, payout_boost=$2 WHERE id=$3",
+    [player.balance, player.payout_boost, userId]
+  );
+
+  res.json({
+    balance: player.balance,
+    payoutBoost: player.payout_boost
+  });
 });
 
 router.post("/open-crate", async (req, res) => {
