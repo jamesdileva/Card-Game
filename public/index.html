@@ -2,80 +2,154 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>🎰 Card Slot Game</title>
+  <title>🎰 Arcade Slot</title>
   <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
+
   <div class="game-container">
 
-    <header>🎰 Card Slot Game</header>
-    <!-- XP PROGRESSION UI-->
-    <div id="level">Level: 1</div>
-    <div id="xp">XP: 0</div>
-    <!-- Top bar -->
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-      <div id="balance">Balance: $0</div>
-      <button id="store-btn">Store 🛒</button>
-      <div>
-        <button id="spin-btn" class="btn btn-spin">Spin</button>
-        <button id="auto-spin-btn">Auto Spin 🔁</button>
-        <button id="logout-btn">Logout</button>
+    <header>🎰 ARCADE SLOT</header>
+
+    <!-- TOP BAR -->
+    <div class="top-bar">
+      <div id="login-streak">Login Streak: 1</div>
+      <div class="left-ui">
+        <div class="xp-container">
+          <div class="xp-top">
+            <span id="level">Lv. 1</span>
+            <span id="xp-text">0 / 100</span>
+          </div>
+          <div class="xp-bar">
+            <div id="xp-fill"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="right-ui">
+        <button id="spin-btn" class="btn btn-spin">SPIN</button>
+        <button id="auto-spin-btn" class="btn">AUTO</button>
+        <button id="store-btn" class="btn">STORE</button>
+        <button id="logout-btn" class="btn btn-danger">LOGOUT</button>
       </div>
     </div>
 
-    <!-- Slot Machine -->
-    <div id="slot-reels">
-      <span id="r1">❓</span>
-      <span id="r2">❓</span>
-      <span id="r3">❓</span>
-      <span id="r4">❓</span>
-      <span id="r5">❓</span>
+    <!-- 🎰 SLOT MACHINE -->
+   <div class="slot-section">
+
+    <!-- LEFT SIDE (Deck / Event / Streak) -->
+    <div class="slot-side slot-left">
+      
+      <div class="ui-block">
+        <div class="ui-label">Deck Effects</div>
+        <div id="deck-effects">None</div>
+      </div>
+
+      <div class="ui-block">
+        <div class="ui-label">Event</div>
+        <div id="event-display">None</div>
+      </div>
+
+      <div class="ui-block">
+        <div class="ui-label">Streak</div>
+        <div id="streak-display">x1</div>
+      </div>
+
     </div>
 
-    <!-- Crates -->
-    <div class="crate-container">
-      <button class="btn btn-crate" data-crate="basic">Basic</button>
-      <button class="btn btn-crate" data-crate="premium">Premium</button>
-      <button class="btn btn-crate" data-crate="elite">Elite</button>
+    <!-- CENTER (Slot Machine) -->
+    <div id="slot-reels-container">
+
+      <div class="slot-header">
+        <div id="balance" class="slot-balance">$0</div>
+      </div>
+
+      <div id="slot-reels">
+        <span id="r1">❓</span>
+        <span id="r2">❓</span>
+        <span id="r3">❓</span>
+        <span id="r4">❓</span>
+        <span id="r5">❓</span>
+      </div>
+
+      <!-- RESULT (payout only) -->
+      <div id="result"></div>
+
     </div>
 
-    <!-- Result -->
-    <h2>Result</h2>
-    <div id="result"></div>
+    <!-- RIGHT SIDE (Multiplier + Luck) -->
+    <div class="slot-side slot-right">
 
-    <!-- Deck -->
-    <h2>Deck</h2>
-    <div id="deck"></div>
+      <div class="multiplier-main" id="multiplier">x1.0</div>
 
-    <!-- Inventory -->
-    <h2>Inventory</h2>
-    <div id="inventory"></div>
-    <div id="store-panel" class="hidden">
-    <h2>🛒 Upgrade Shop</h2>
+      <div class="multiplier-sub" id="luck-mult">🍀 x1.0</div>
 
-    <button id="upgrade-payout-btn">
-      Payout Boost (<span id="payout-boost-text">x1.0</span>) - $1000
-    </button>
+    </div>
 
-    <button id="upgrade-xp-btn">
-      XP Boost (<span id="xp-boost-text">x1.0</span>) - $1000
-    </button>
   </div>
-    <!-- DEV TOOLS -->
-    <h2>Dev Tools</h2>
-    <div style="margin-top:20px;">
-      <button id="dev-add-balance">+10K 💰</button>
-      <button id="dev-reset-deck">Reset Deck 🔄</button>
-      <button id="dev-clear-inventory">Reset ALL 🧹</button>
-      <button onclick="devCard('mythic_multiplier','legendary')">+Legendary</button>
+
+    <!-- 🛒 STORE PANEL (NOW HOLDS CRATES) -->
+    <div id="store-panel" class="hidden">
+
+      <h2>Shop</h2>
+
+      <div class="shop-section">
+        <h3>Crates</h3>
+        <button class="btn btn-crate" data-crate="basic">Basic</button>
+        <button class="btn btn-crate" data-crate="premium">Premium</button>
+        <button class="btn btn-crate" data-crate="elite">Elite</button>
+      </div>
+
+      <div class="shop-section">
+        <h3>Upgrades</h3>
+
+        <button id="upgrade-payout-btn">
+          Payout (<span id="payout-boost-text">x1.0</span>)
+        </button>
+
+        <button id="upgrade-xp-btn">
+          XP (<span id="xp-boost-text">x1.0</span>)
+        </button>
+      </div>
+
     </div>
 
-    <!-- Dev output -->
-    <div id="dev-result" style="margin-top:10px; color:gold;"></div>
+    <!-- 🃏 DECK (COLLAPSIBLE) -->
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel('deck-panel')">
+        Deck ▼
+      </div>
+
+      <div id="deck-panel" class="panel-body">
+        <div id="deck"></div>
+      </div>
+    </div>
+
+    <!-- 🎒 INVENTORY (COLLAPSIBLE) -->
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel('inventory-panel')">
+        Inventory ▼
+      </div>
+
+      <div id="inventory-panel" class="panel-body">
+        <div id="inventory"></div>
+      </div>
+    </div>
+
+    <!-- 🛠 DEV TOOLS -->
+    <div class="dev-tools">
+      <button id="dev-add-balance">+10K</button>
+      <button id="dev-reset-deck">Reset Deck</button>
+      <button id="dev-clear-inventory">Reset All</button>
+      <button onclick="devCard('mythic_multiplier','legendary')">
+        +Legendary
+      </button>
+    </div>
 
   </div>
 
   <script src="app.js" defer></script>
+
 </body>
 </html>

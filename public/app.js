@@ -58,9 +58,91 @@ function cleanCardId(id) {
     .split("_")
     .map(w => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
+} 
+
+function displayResult(data) {
+  console.log("DISPLAY CALLED", data);
+
+  const resultEl = document.getElementById("result");
+
+  // 🎯 SAFE VALUES
+  const payout = data?.payout ?? 0;
+
+  // RIGHT SIDE
+  const payoutMult = Number(data?.effects?.payoutMult) || 1;
+  const luck = Number(data?.effects?.luck) || 1;
+
+  // LEFT SIDE
+  const synergies = data?.effects?.synergies ?? [];
+  const eventLabel = data?.event?.label ?? null;
+  const streak = data?.newStreak ?? data?.streak ?? 0; // ✅ FIXED
+
+  // =========================
+  // 🎰 CENTER (PAYOUT ONLY)
+  // =========================
+  resultEl.innerHTML = `
+    <div class="result-main">
+      ${payout > 0 ? `💰 $${payout}` : `❌ No Win`}
+    </div>
+  `;
+
+  // =========================
+  // ⬅️ LEFT SIDE
+  // =========================
+
+  // 🎴 Deck Effects
+  document.getElementById("deck-effects").innerText =
+    synergies.length ? synergies.join(" ") : "None";
+
+  // ⚡ Event
+  document.getElementById("event-display").innerText =
+    eventLabel || "None";
+
+  // 🔥 Streak (NO +1, true backend value)
+  document.getElementById("streak-display").innerText =
+    `x${streak}`;
+
+  // =========================
+  // ➡️ RIGHT SIDE
+  // =========================
+    // 🔥 ALWAYS RECALCULATE FROM DECK (consistent with load)
+    const effects = data.effects;
+
+    updateMultiplierUI(effects);
+    updateLeftUI(effects);
 }
 
+function handleDailyLogin(user) {
+  const today = new Date().toISOString().slice(0, 10);
 
+  if (!user.last_login) {
+    return { reward: 100, streak: 1, updated: true };
+  }
+
+  const last = new Date(user.last_login);
+  const diffDays = Math.floor(
+    (new Date(today) - last) / (1000 * 60 * 60 * 24)
+  );
+
+  let streak = user.login_streak || 0;
+
+  if (diffDays === 1) {
+    streak += 1;
+  } else if (diffDays > 1) {
+    streak = 1; // reset
+  } else {
+    return { reward: 0, streak, updated: false }; // already claimed today
+  }
+
+  const reward = 100 + (streak * 50);
+
+  return {
+    reward,
+    streak,
+    updated: true,
+    today
+  };
+}
 // --- RENDER INVENTORY ---
 function renderInventory(inventoryArray) {
   const invEl = document.getElementById("inventory");
@@ -268,6 +350,24 @@ function toggleAutoSpin() {
   }
 }
 
+function togglePanel(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+
+  el.classList.toggle("collapsed");
+
+  // toggle header style
+  const header = el.previousElementSibling;
+  header.classList.toggle("active");
+
+  // rotate arrow
+  if (header.innerText.includes("▼")) {
+    header.innerText = header.innerText.replace("▼", "▲");
+  } else {
+    header.innerText = header.innerText.replace("▲", "▼");
+  }
+}
+
 function debugSpin() {
   const btn = document.getElementById("spin-btn");
 
@@ -287,6 +387,19 @@ async function runAutoSpin() {
   }
 }
 
+function pulseReels(type) {
+  const reels = document.getElementById("slot-reels");
+  if (!reels) return;
+
+  reels.classList.remove("pulse-gold", "pulse-green");
+
+  if (type === "gold") reels.classList.add("pulse-gold");
+  if (type === "green") reels.classList.add("pulse-green");
+
+  setTimeout(() => {
+    reels.classList.remove("pulse-gold", "pulse-green");
+  }, 500);
+}
 // --- SPIN FUNCTION ---
 async function spin() {
   if (spinning) {
@@ -334,7 +447,10 @@ async function spin() {
     if (!data || data.error) {
       if (resultEl) resultEl.innerText = data?.error || "Error";
       console.log("❌ API error:", data);
-      autoSpinActive = false;
+      const btn = document.getElementById("auto-spin-btn");
+      btn?.classList.remove("active");
+
+      spinBtn.disabled = false;
       return;
     }
 
@@ -358,97 +474,36 @@ async function spin() {
       if (el) el.innerText = getSymbol(reels[i]);
     }
 
-   // --- UPDATE UI
+    // --- UPDATE UI
     balanceEl.innerText = `Balance: $${data.balance}`;
 
-    let lines = [];
-
-    // 💰 BASE RESULT
-    lines.push(`💰 Payout: ${data.payout}`);
-
-    // 🎴 DECK EFFECTS
-    if (data.effects) {
-      if (data.effects.payoutMult > 1) {
-        lines.push(`💰 Deck x${data.effects.payoutMult.toFixed(2)}`);
-      }
-
-      if (data.effects.xpMult > 1) {
-        lines.push(`⚡ XP x${data.effects.xpMult.toFixed(2)}`);
-      }
-
-      if (data.effects.luck > 1) {
-        let luckText = "🍀 Luck Boost";
-
-        if (data.effects.luck >= 1.5) luckText = "🍀 Lucky!";
-        if (data.effects.luck >= 2) luckText = "🍀 Super Lucky!";
-        if (data.effects.luck >= 3) luckText = "🍀 INSANE LUCK";
-
-        lines.push(`${luckText} (x${data.effects.luck.toFixed(2)})`);
-      }
-
-      if (data.effects.rerollChance > 0) {
-        lines.push(`🔁 Reroll ${(data.effects.rerollChance * 100).toFixed(0)}%`);
-      }
-    }
-
-    // ⚡ EVENT
-    if (data.event) {
-      lines.push(data.event.label);
-    }
-
-    // 🔥 STREAK
-    if (data.streak && data.streak > 1) {
-      lines.push(`🔥 Streak x${data.streak}`);
-    }
-
-    // 🧠 FINAL RENDER
-    if (resultEl) {
-      resultEl.innerText = lines.join(" | ");
-    }
-
+  
     // --- 🎉 WIN EFFECTS (ONLY ONCE)
     if (data.payout > 0) {
       showFloatingWin(data.payout);
     }
-
-    // ⚡ FLASH EFFECTS
-    if (data.event?.type === "DOUBLE_PAYOUT") {
-      document.body.classList.add("gold-flash");
-    }
-
-    if (data.event?.type === "DOUBLE_XP") {
-      document.body.classList.add("blue-flash");
-    }
-
-    if (data.event?.type === "LUCK_SURGE") {
-      document.body.classList.add("green-flash");
-    }
-
-    setTimeout(() => {
-      document.body.classList.remove("gold-flash", "blue-flash", "green-flash");
-    }, 500);
-    showSpinResultEffect(data.payout);
+    // ✅ ONLY UI RENDER
+    displayResult(data);
+   
 
     console.log("✅ SPIN SUCCESS", data);
-
   } catch (err) {
     console.error("🔥 Spin crash:", err);
     stopSpinAnimation();
-    autoSpinActive = false;
   } finally {
     spinning = false;
 
     if (!autoSpinActive) {
       spinBtn.disabled = false;
     }
-
+    
     console.log("🔄 spin reset", {
       spinning,
       disabled: spinBtn.disabled,
       autoSpinActive
     });
   }
-
+  
   debugSpin();
 }
 
@@ -481,12 +536,45 @@ function updateCurrentDeck(deckArray) {
 function showFloatingWin(amount) {
   if (amount <= 0) return;
 
+  const balanceEl = document.getElementById("balance");
+  if (!balanceEl) return;
+
+  const rect = balanceEl.getBoundingClientRect();
+
+  const startX = window.innerWidth / 2;
+  const startY = window.innerHeight / 2;
+
+  const endX = rect.left + rect.width / 2;
+  const endY = rect.top + rect.height / 2;
+
   const el = document.createElement("div");
   el.className = "floating-win";
-  el.innerText = `+${amount}💰`;
+  el.innerText = `+${amount}`;
+
+  el.style.left = `${startX}px`;
+  el.style.top = `${startY}px`;
+
+  const dx = endX - startX;
+  const dy = endY - startY;
+
+  el.style.setProperty("--dx", `${dx}px`);
+  el.style.setProperty("--dy", `${dy}px`);
 
   document.body.appendChild(el);
-  setTimeout(() => el.remove(), 1200);
+
+  // slight delay before movement kicks in
+  el.style.animationDelay = "0.05s";
+
+  // 💥 balance hit effect (keep this)
+  setTimeout(() => {
+    balanceEl.classList.add("balance-hit");
+    setTimeout(() => balanceEl.classList.remove("balance-hit"), 300);
+  }, 800);
+
+  //  THIS WAS MISSING
+  setTimeout(() => {
+    el.remove();
+  }, 1800);
 }
 
 // --- RESULT EFFECT ---
@@ -635,17 +723,90 @@ async function update() {
   currentDeck = normalizeArray(deckData, "deck").map(c => c?.id).filter(Boolean);
 }
 
-function triggerLegendary(){
+function triggerLegendary() {
+  console.log("🌟 LEGENDARY TRIGGERED");
 
+  const body = document.body;
+
+  // 🌈 Add screen effect
+  body.classList.add("legendary-flash");
+
+  // 💥 Big text popup
+  const el = document.createElement("div");
+  el.className = "legendary-popup";
+  el.innerText = "🌟 LEGENDARY!";
+  document.body.appendChild(el);
+
+  // 🧹 Cleanup
+  setTimeout(() => {
+    body.classList.remove("legendary-flash");
+    el.remove();
+  }, 1500);
+}
   
+function triggerBigWin(amount) {
+  const overlay = document.createElement("div");
+  overlay.className = "big-win-overlay subtle";
+
+  const content = document.createElement("div");
+  content.className = "big-win-content";
+
+  content.innerHTML = `
+    <div class="big-win-title">Big Win</div>
+    <div class="big-win-amount">+$${amount.toLocaleString()}</div>
+  `;
+
+  overlay.appendChild(content);
+  document.body.appendChild(overlay);
+
+  // ✨ subtle pulse on reels instead of explosion
+  const reels = document.getElementById("slot-reels");
+  reels?.classList.add("big-win-pulse");
+
+  setTimeout(() => {
+    overlay.classList.add("fade-out");
+    reels?.classList.remove("big-win-pulse");
+    setTimeout(() => overlay.remove(), 300);
+  }, 1000);
+}
+// UPDATES SLOTS UI
+function updateMultiplierUI(effects) {
+  const payoutEl = document.getElementById("multiplier");
+  const luckEl = document.getElementById("luck-mult");
+
+  if (payoutEl) {
+    payoutEl.innerHTML = `💰Payout<br>x${effects.payoutMult.toFixed(1)}`;
+  }
+
+  if (luckEl) {
+    luckEl.innerHTML =
+      effects.luck > 1 ? `🍀Luck<br>x${effects.luck.toFixed(1)}` : "";
+  }
 }
 
-async function loadProgression() {
-  // placeholder for now
+function updateLeftUI(effects) {
+  const deckEl = document.getElementById("deck-effects");
+  const eventEl = document.getElementById("event-display");
+  const streakEl = document.getElementById("streak-display");
+
+  if (deckEl) {
+    deckEl.innerText =
+      effects.synergies?.length
+        ? effects.synergies.join(" ")
+        : "None";
+  }
+
+  if (eventEl) {
+    eventEl.innerText = "None"; // no event on load
+  }
+
+  if (streakEl) {
+    streakEl.innerText = "x0"; // no spin streak on load
+  }
 }
 
 async function resetAccount() {
-  await safeFetch("${API}/dev-reset", { method: "POST" });
+  await safeFetch(`${API}/dev-reset`, { method: "POST" });
   await loadGame();
 }
 // DEV CARD
@@ -658,32 +819,104 @@ async function devCard(card_id, rarity) {
   await update();
 }
 
+function calculateSynergies(deck, effects) {
+  const d = deck || [];
+
+  effects.synergies = effects.synergies || [];
+
+  const addSynergy = (label) => {
+    effects.synergies.push(label);
+  };
+
+  const count = {};
+  d.forEach(card => {
+    if (!card) return;
+    count[card] = (count[card] || 0) + 1;
+  });
+
+  // 🔥 TRIPLE MYTHIC
+  if (count["mythic_multiplier"] >= 3) {
+    effects.payoutMult += 7;
+    effects.luck += 0.2;
+    addSynergy("💀 Triple Mythic");
+  }
+
+  // 🍀 Lucky Pair
+  if (count["lucky_charm"] >= 2) {
+    effects.rerollChance += 0.3;
+    addSynergy("🍀 Lucky Pair");
+  }
+
+  // 🔁 Reroll Engine
+  if (count["reroll"] >= 2) {
+    effects.rerollChance += 0.5;
+    addSynergy("🔁 Reroll Engine");
+  }
+
+  // ✨ Luck Engine
+  if (count["lucky_charm"] && count["reroll"]) {
+    effects.rerollChance += 0.25;
+    effects.luck += 0.2;
+    addSynergy("✨ Luck Engine");
+  }
+
+  return effects;
+}
+
 // --- LOAD ---
 async function loadGame() {
   try {
     const data = await safeFetch(`${API}/state`);
     if (!data) return;
 
-    // ✅ SET VALUES FIRST
+    console.log("🎮 LOAD STATE:", data);
+
+    // --- PLAYER STATS ---
     payoutBoost = data.payoutBoost || 1;
     xpBoost = data.xpBoost || 1;
 
     playerXP = data.xp || 0;
     playerLevel = data.level || 1;
 
-    // ✅ UPDATE UI
-    updateUpgradeUI();
     updateXPUI();
+    updateUpgradeUI();
 
     document.getElementById("balance").innerText =
       `Balance: $${data.balance || 0}`;
 
+    // --- LOGIN STREAK ---
+    const streakEl = document.getElementById("login-streak");
+    if (streakEl) {
+      streakEl.innerText = `Login Streak: ${data.loginStreak}`;
+    }
+
+    // --- LOGIN REWARD ---
+    if (data.loginReward > 0) {
+      document.getElementById("result").innerHTML = `
+        <div class="result-main">
+          🎁 Daily Reward: +$${data.loginReward}
+        </div>
+      `;
+    }
+
+    // 🔥 Load deck (for rendering only)
     await update();
 
+    // ✅ USE BACKEND EFFECTS ONLY
+    const effects = data.effects;
+
+    console.log("🎴 CURRENT DECK:", currentDeck);
+    console.log("🧠 BACKEND EFFECTS:", effects);
+
+    // --- UI UPDATE ---
+    updateMultiplierUI(effects);
+    updateLeftUI(effects);
+
   } catch (err) {
-    console.error("Load failed:", err);
+    console.error("Load game failed:", err);
   }
 }
+
 document.addEventListener("DOMContentLoaded", () => {
   // Spin button
   const spinBtn = document.getElementById("spin-btn");
@@ -692,7 +925,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Auto-spin button
   const autoSpinBtn = document.getElementById("auto-spin-btn");
   if (autoSpinBtn) autoSpinBtn.addEventListener("click", toggleAutoSpin);
-
+  
   // Logout
   const logoutBtn = document.getElementById("logout-btn");
   if (logoutBtn) logoutBtn.addEventListener("click", logout);
@@ -774,20 +1007,25 @@ document.addEventListener("DOMContentLoaded", () => {
   // Load initial game state
   loadGame();
 });
+
 // XP UPDATER 
 function updateXPUI() {
-  console.log("📊 XP UPDATE", {
-    xp: playerXP,
-    level: playerLevel,
-    xpBoost: xpBoost
-  });
-
-  const xpEl = document.getElementById("xp");
   const levelEl = document.getElementById("level");
+  const xpTextEl = document.getElementById("xp-text");
+  const xpFill = document.getElementById("xp-fill");
 
-  if (xpEl) xpEl.innerText = `XP: ${playerXP}`;
-  if (levelEl) levelEl.innerText = `Level: ${playerLevel}`;
+  if (!levelEl || !xpTextEl || !xpFill) return;
+
+  // 🧠 simple leveling formula (you can tweak later)
+  const xpNeeded = playerLevel * 100;
+
+  const percent = Math.min((playerXP / xpNeeded) * 100, 100);
+
+  levelEl.innerText = `Lv. ${playerLevel}`;
+  xpTextEl.innerText = `${playerXP} / ${xpNeeded}`;
+  xpFill.style.width = `${percent}%`;
 }
+
 function calculateDeckEffects(deck) {
   let effects = {
     payoutMult: 1,
@@ -853,7 +1091,7 @@ function updateUpgradeUI() {
   if (payoutEl) payoutEl.innerText = `x${payoutBoost.toFixed(1)}`;
   if (xpEl) xpEl.innerText = `x${xpBoost.toFixed(1)}`;
 }
-
+/*
 function showDeckEffects(effects) {
   const resultEl = document.getElementById("result");
   if (!resultEl) return;
@@ -884,3 +1122,4 @@ function showDeckEffects(effects) {
     resultEl.innerText += " | " + text.join(" | ");
   }
 }
+*/

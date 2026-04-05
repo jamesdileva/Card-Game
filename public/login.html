@@ -17,8 +17,27 @@ async function login() {
 
   const data = await res.json();
 
-  if (data.success) location.href = "/";
-  else alert("Login failed");
+  // 🔍 DEBUG BLOCK (MATCHES YOUR SPIN STYLE)
+  console.log("🚨 LOGIN ROUTE WITH REWARD HIT");
+  console.log("---- LOGIN DEBUG ----");
+  console.log("response:", data);
+  console.log("status:", data.status);
+  console.log("reward:", data.loginReward);
+  console.log("streak:", data.loginStreak);
+  
+
+  if (data.status === "logged_in" || data.success) {
+    if (data.loginReward > 0) {
+      alert(`🎁 Daily Reward: $${data.loginReward} (Streak: ${data.loginStreak})`);
+    }
+
+    console.log("✅ LOGIN SUCCESS", data);
+
+    location.href = "/";
+  } else {
+    console.log("❌ LOGIN FAILED", data);
+    alert("Login failed");
+  }
 }
 
 async function register() {

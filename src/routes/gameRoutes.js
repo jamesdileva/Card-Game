@@ -95,78 +95,62 @@ function rollRandomEvent() {
 
 
 // ====================
-// AUTH ROUTES
-// ====================
-
-router.post("/register", async (req, res) => {
-  const { username, password } = req.body;
-
-  if (!username || !password)
-    return res.json({ error: "Missing fields" });
-
-  const hash = await bcrypt.hash(password, 10);
-
-  try {
-    const result = await pool.query(
-      "INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id",
-      [username, hash]
-    );
-
-    const userId = result.rows[0].id;
-    for (let i = 0; i < 3; i++) {
-      await pool.query(
-        "INSERT INTO deck (user_id, slot, card_id) VALUES ($1, $2, NULL)",
-        [userId, i]
-      );
-    }
-
-
-    res.json({ status: "registered" });
-  } catch {
-    res.json({ error: "Username exists" });
-  }
-});
-
-router.post("/login", async (req, res) => {
-  const { username, password } = req.body;
-
-  const result = await pool.query(
-    "SELECT * FROM users WHERE username=$1",
-    [username]
-  );
-
-  const user = result.rows[0];
-
-  if (!user) return res.json({ error: "Invalid credentials" });
-
-  const valid = await bcrypt.compare(password, user.password);
-
-  if (!valid) return res.json({ error: "Invalid credentials" });
-
-  req.session.userId = user.id;
-
-  res.json({ status: "logged_in" });
-});
-
-router.get("/logout", (req, res) => {
-  req.session.destroy();
-  res.json({ status: "logged_out" });
-});
-
-
-// ====================
 // GAME ROUTES
 // ====================
 
 router.get("/state", async (req, res) => {
   if (!(await requireLogin(req, res))) return;
 
-  const result = await pool.query(
-    "SELECT balance FROM users WHERE id=$1",
-    [req.session.userId]
+  const userId = req.session.userId;
+
+  // --- USER DATA ---
+  const userRes = await pool.query(
+    `SELECT 
+      balance,
+      xp,
+      level,
+      payout_boost,
+      xp_boost,
+      login_streak,
+      last_login
+     FROM users
+     WHERE id=$1`,
+    [userId]
   );
 
-  res.json({ balance: result.rows[0].balance });
+  const user = userRes.rows[0];
+
+  // --- 🎴 GET DECK ---
+  const deckRes = await pool.query(
+    "SELECT card_id FROM deck WHERE user_id=$1 ORDER BY slot",
+    [userId]
+  );
+
+  const deck = deckRes.rows.map(r => r.card_id).filter(Boolean);
+
+  // --- 🎴 CALCULATE EFFECTS ---
+  let effects = calculateDeckEffects(deck);
+  calculateSynergies(deck, effects);
+
+  // --- 🎁 LOGIN REWARD (ONE-TIME) ---
+  const loginReward = req.session.loginReward || 0;
+  req.session.loginReward = 0;
+
+  // --- RESPONSE ---
+  res.json({
+    balance: user.balance,
+    xp: user.xp,
+    level: user.level,
+    payoutBoost: user.payout_boost || 1,
+    xpBoost: user.xp_boost || 1,
+    loginStreak: user.login_streak || 1,
+    lastLogin: user.last_login,
+    loginReward,
+
+    // 🔥 NEW (THIS FIXES YOUR UI ISSUE)
+    effects,
+    deck
+  });
 });
 
 router.get("/inventory", async (req, res) => {
@@ -379,6 +363,9 @@ router.post("/set-deck", async (req, res) => {
 
   res.json({ status: "ok" });
 });
+function getLevelReward(level) {
+  return 200 + (level * 50);
+}
 
 function calculateDeckEffects(deck) {
   const effects = {
@@ -426,60 +413,103 @@ function calculateDeckEffects(deck) {
 function calculateSynergies(deck, effects) {
   const d = deck || [];
 
-  // 🎴 SYNERGY: lucky_charm + jackpot_boost
+  // ensure array exists
+  effects.synergies = effects.synergies || [];
+
+  const addSynergy = (label) => {
+    effects.synergies.push(label);
+  };
+
+  // -------------------------
+  // 🧠 PAIR SYNERGIES
+  // -------------------------
+
   if (d.includes("lucky_charm") && d.includes("jackpot_boost")) {
     effects.payoutMult *= 1.5;
     effects.luck += 0.1;
-
-    effects.synergies = effects.synergies || [];
-    effects.synergies.push("🍀 Lucky Jackpot");
+    addSynergy("🍀 Lucky Jackpot");
   }
 
-  // 🎴 SYNERGY: reroll + multiplier_chain
   if (d.includes("reroll") && d.includes("multiplier_chain")) {
     effects.rerollChance += 0.2;
     effects.payoutMult *= 1.3;
-
-    effects.synergies = effects.synergies || [];
-    effects.synergies.push("🔁 Chain Reroll");
+    addSynergy("🔁 Chain Reroll");
   }
 
-  // 🎴 SYNERGY: double_down + mythic_multiplier
   if (d.includes("double_down") && d.includes("mythic_multiplier")) {
     effects.payoutMult *= 2;
-
-    effects.synergies = effects.synergies || [];
-    effects.synergies.push("💥 Mythic Double");
+    addSynergy("💥 Mythic Double");
   }
-  // --- 🔥 SYNERGIES ---
+
+  // -------------------------
+  // 🔢 COUNT SYNERGIES
+  // -------------------------
+
   const count = {};
-  deck.forEach(card => {
+  d.forEach(card => {
+    if (!card) return;
     count[card] = (count[card] || 0) + 1;
   });
 
-  // 🎯 TRIPLE SYNERGIES
+  // 🔥 TRIPLE MYTHIC (your big one)
   if (count["mythic_multiplier"] >= 3) {
-    effects.payoutMult += 7; // HUGE spike
+    effects.payoutMult += 7;
     effects.luck += 0.2;
-    console.log("🔥 SYNERGY: TRIPLE MYTHIC");
+    addSynergy(" Triple Mythic");
   }
 
+  // 🍀 Lucky Charm Pair
   if (count["lucky_charm"] >= 2) {
     effects.rerollChance += 0.3;
-    console.log("🍀 SYNERGY: LUCKY CHARM PAIR");
+    addSynergy("🍀 Lucky Pair");
   }
 
+  // 🔁 Reroll Stack
   if (count["reroll"] >= 2) {
     effects.rerollChance += 0.5;
-    console.log("🔁 SYNERGY: REROLL STACK");
+    addSynergy("🔁 Reroll Engine");
   }
 
-  // 🧪 MIXED SYNERGY
+  // -------------------------
+  // 🧪 MIXED BUILDS
+  // -------------------------
+
   if (count["lucky_charm"] && count["reroll"]) {
     effects.rerollChance += 0.25;
     effects.luck += 0.2;
-    console.log("✨ SYNERGY: LUCK + REROLL");
+    addSynergy("✨ Luck Engine");
   }
+
+  if (count["multiplier_chain"] >= 2) {
+    effects.payoutMult += 1.0;
+    effects.xpMult += 0.5;
+    addSynergy("⛓️ Chain Scaling");
+  }
+
+  if (count["wild_symbol"] >= 2) {
+    effects.bonusPayout = (effects.bonusPayout || 0) + 300;
+    addSynergy("🃏 Wild Surge");
+  }
+
+  if (count["jackpot_boost"] >= 2) {
+    effects.payoutMult += 2;
+    addSynergy("👑 Jackpot Overload");
+  }
+
+  // -------------------------
+  // 💀 GOD TIER (RARE BUILD)
+  // -------------------------
+
+  if (
+    count["mythic_multiplier"] &&
+    count["jackpot_boost"] &&
+    count["multiplier_chain"]
+  ) {
+    effects.payoutMult *= 2;
+    effects.luck += 0.5;
+    addSynergy("💀 GOD BUILD");
+  }
+
   return effects;
 }
 
@@ -491,7 +521,9 @@ router.post("/spin", async (req, res) => {
 
   // --- GET USER ---
   const userRes = await pool.query(
-    "SELECT balance, xp, level, payout_boost, xp_boost, win_streak FROM users WHERE id=$1",
+    `SELECT balance, xp, level, payout_boost, xp_boost, win_streak, last_rewarded_level
+    FROM users
+    WHERE id = $1`,
     [req.session.userId]
   );
 
@@ -510,9 +542,9 @@ router.post("/spin", async (req, res) => {
 
   // --- 🎴 DECK EFFECTS ---
   const effects = calculateDeckEffects(deck);
-
-  // --- 🎴 CARD SYNERGY ---
+  // ✅ APPLY SYNERGIES (YOU ARE MISSING THIS)
   calculateSynergies(deck, effects);
+
 
   // --- ⚡ RANDOM EVENT ---
   let event = rollRandomEvent();
@@ -626,18 +658,37 @@ router.post("/spin", async (req, res) => {
   xpGain = Math.floor(xpGain * user.xp_boost);
 
   console.log("⭐ FINAL XP GAIN:", xpGain);
-
+// PART OF LEVEL SYSTEM
   let newXP = user.xp + xpGain;
-  let newLevel = user.level;
+  let newLevel = user.level; 
+ /* let newXP = user.xp + xpGain + 10000; // 🔥 FORCE LEVEL UP (DEBUG ONLY)
+  let newLevel = user.level;*/
 
   // --- LEVEL SYSTEM ---
   let xpNeeded = newLevel * 100;
+  let levelRewards = [];
 
   while (newXP >= xpNeeded) {
     newXP -= xpNeeded;
     newLevel++;
+    console.log("✅ NEW LEVEL:", newLevel);
     xpNeeded = newLevel * 100;
+
+    if (newLevel > (user.last_rewarded_level || 0)) {
+      const reward = getLevelReward(newLevel);
+      
+      console.log("🎁 REWARD TRIGGERED:", reward);
+
+      if (reward > 0) {
+        levelRewards.push({
+          level: newLevel,
+          amount: reward
+        });
+      }
+    }
   }
+
+  const totalLevelReward = levelRewards.reduce((sum, r) => sum + r.amount, 0);
   // DEBUG
   console.log("📈 LEVEL UPDATE:", {
     newXP,
@@ -647,40 +698,56 @@ router.post("/spin", async (req, res) => {
     reels,
     basePayout: payout,
     deckMult: effects.payoutMult,
-    afterDeck: payout,
+    afterDeck: deckAdjustedPayout,
     playerBoost: user.payout_boost,
     afterPlayer: boostedPayout,
     streak: newStreak,
-    final: finalPayout
+    final: finalPayout,
+    levelRewards,
+    totalLevelReward
+  });
+  console.log("XP CHECK:", {
+    currentXP: user.xp,
+    xpGain,
+    newXP,
+    xpNeeded
   });
 
 
   // --- SAVE ---
   await pool.query(
     `UPDATE users 
-     SET balance=$1, xp=$2, level=$3 
-     WHERE id=$4`,
-    [newBalance, newXP, newLevel, req.session.userId]
+    SET 
+      balance = $1,
+      xp = $2,
+      level = $3,
+      win_streak = $4,
+      last_rewarded_level = $5
+    WHERE id = $6`,
+    [
+      newBalance + totalLevelReward, // ✅ APPLY REWARD HERE
+      newXP,
+      newLevel,
+      newStreak,
+      newLevel, // ✅ SAVE LAST REWARDED LEVEL
+      req.session.userId
+    ]
   );
-  await pool.query(
-  `UPDATE users 
-   SET balance=$1, xp=$2, level=$3, win_streak=$4 
-   WHERE id=$5`,
-  [newBalance, newXP, newLevel, newStreak, req.session.userId]
-);
 
   // --- RESPONSE ---
-  res.json({
+    res.json({
     reels,
     payout: finalPayout,
-    balance: newBalance,
+    balance: newBalance + totalLevelReward, // ✅ FIXED
     xp: newXP,
     level: newLevel,
     payoutBoost: user.payout_boost,
     xpBoost: user.xp_boost,
     effects,
     event,
-    newStreak
+    newStreak,
+    levelRewards,
+    totalLevelReward // ✅ NEW
   });
 });
   
@@ -704,7 +771,7 @@ router.post("/upgrade/payout", async (req, res) => {
   }
 
   const newBoost = parseFloat(user.payout_boost) + 0.1;
-  const newBalance = user.balance - bet + finalPayoutWithStreak;
+  const newBalance = user.balance - cost;
 
   await pool.query(
     "UPDATE users SET balance=$1, payout_boost=$2 WHERE id=$3",
@@ -756,7 +823,7 @@ router.post("/upgrade/xp", async (req, res) => {
 router.get("/progression", async (req, res) => {
   const userId = req.session.userId;
 
-  const { rows } = await db.query(
+  const { rows } = await pool.query(
     "SELECT xp, level, payout_boost FROM users WHERE id=$1",
     [userId]
   );
@@ -773,7 +840,7 @@ router.get("/progression", async (req, res) => {
 router.post("/buy-upgrade", async (req, res) => {
   const userId = req.session.userId;
 
-  const { rows } = await db.query(
+  const { rows } = await pool.query(
     "SELECT balance, payout_boost FROM users WHERE id=$1",
     [userId]
   );
