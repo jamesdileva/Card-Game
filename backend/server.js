@@ -1,11 +1,13 @@
-require("dotenv").config(); // ✅ FIRST LINE
+require("dotenv").config();
 const express = require("express");
 const session = require("express-session");
 const pgSession = require("connect-pg-simple")(session);
 const pool = require("./db");
-const path = require("path");
 const cors = require("cors");
+
 const app = express();
+
+app.set("trust proxy", 1); // ✅ REQUIRED FOR RENDER
 
 app.use(cors({
   origin: [
@@ -17,26 +19,30 @@ app.use(cors({
 
 app.use(express.json());
 
-// SESSION STORE
-// ✅ 3. SESSION (your existing code — KEEP THIS)
+// ✅ TEST ROUTE
+app.get("/", (req, res) => {
+  res.send("Backend is running ✅");
+});
+
+// ✅ SESSION
 app.use(session({
   store: new pgSession({
     pool,
     createTableIfMissing: true
   }),
-  secret: "secret-key",
+  secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false,
-    sameSite: "none" // 👈 ADD THIS (important for cookies)
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "none"
   }
 }));
 
-
-
-// ROUTES (FIXED PATHS)
+// ✅ ROUTES
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/game", require("./routes/gameRoutes"));
 
-app.listen(3000, () => console.log("Server running on 3000"));
+// ✅ PORT FIX
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on ${PORT}`));
