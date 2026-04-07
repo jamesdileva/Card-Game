@@ -1,12 +1,12 @@
 import { useState } from "react";
-
+const API = import.meta.env.VITE_API_URL + "/api";
 export default function Login({ onLogin }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
   async function handleLogin() {
     try {
-      const res = await fetch("http://localhost:3000/api/auth/login", {
+      const res = await fetch(`${API}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include", // 🔥 IMPORTANT FOR SESSION
@@ -45,7 +45,7 @@ export default function Login({ onLogin }) {
   }
 
   async function handleRegister() {
-    await fetch("http://localhost:3000/api/auth/register", {
+    await  fetch(`${API}/auth/register` , {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

@@ -34,7 +34,7 @@ const [winFaded, setWinFaded] = useState(false);
 const [spinningReels, setSpinningReels] = useState([false, false, false, false, false]);
 const audioCtxRef = useRef(null);
 const validDropRef = useRef(false);
-
+const API = import.meta.env.VITE_API_URL + "/api";
 
 
 useEffect(() => {
@@ -154,7 +154,7 @@ function getWinningIndices(reels) {
   return winners.flat();
 }
 async function upgradeXP() {
-  const res = await fetch("http://localhost:3000/api/game/upgrade/xp", {
+  const res = await fetch(`${API}/game/upgrade/xp`, {
     method: "POST",
     credentials: "include"
   });
@@ -174,7 +174,7 @@ async function upgradeXP() {
 }
 
 async function upgradePayout() {
-  const res = await fetch("http://localhost:3000/api/game/upgrade/payout", {
+  const res = await fetch(`${API}/game/upgrade/payout`, {
     method: "POST",
     credentials: "include"
   });
@@ -334,7 +334,7 @@ function rarityStyle(rarity) {
         useEffect(() => {
           async function loadGame() {
             try {
-              const res = await fetch("http://localhost:3000/api/game/state", {
+              const res = await fetch(`${API}/game/state`, {
                 credentials: "include"
               });
 
@@ -376,7 +376,7 @@ function rarityStyle(rarity) {
           setSpinning(true);
 
           try {
-            const res = await fetch("http://localhost:3000/api/game/spin", {
+            const res = await fetch(`${API}/game/spin`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               credentials: "include",
@@ -426,7 +426,7 @@ function rarityStyle(rarity) {
 
       console.log("💾 SAVING DECK:", deck);
 
-      fetch("http://localhost:3000/api/game/set-deck", {
+      fetch(`${API}/game/set-deck`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -442,7 +442,7 @@ function rarityStyle(rarity) {
     <div className="w-full max-w-md flex justify-end mb-2">
       <button
         onClick={async () => {
-          await fetch("http://localhost:3000/api/auth/logout", {
+          await fetch(`${API}/auth/logout`, {
             method: "POST",
             credentials: "include"
           });
@@ -969,7 +969,7 @@ function rarityStyle(rarity) {
         {/* ⚡ XP BOOST */}
         <button
           onClick={async () => {
-            const res = await fetch("http://localhost:3000/api/game/upgrade/xp", {
+            const res = await fetch(`${API}/game/upgrade/xp`, {
               method: "POST",
               credentials: "include"
             });
@@ -999,7 +999,7 @@ function rarityStyle(rarity) {
         {/* 💰 PAYOUT BOOST */}
         <button
           onClick={async () => {
-            const res = await fetch("http://localhost:3000/api/game/upgrade/payout", {
+            const res = await fetch(`${API}/game/upgrade/payout`, {
               method: "POST",
               credentials: "include"
             });
@@ -1037,7 +1037,7 @@ function rarityStyle(rarity) {
           <button
             key={type}
             onClick={async () => {
-              const res = await fetch("http://localhost:3000/api/game/open-crate", {
+              const res = await fetch(`${API}/game/open-crate`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
