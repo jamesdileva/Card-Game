@@ -28,7 +28,7 @@ app.use(session({
 app.use(express.static(path.join(__dirname, "../public")));
 
 // ✅ 4. ROUTES
-app.use("/api/game", require("./routes/gameRoutes"));
+app.use("/api/game", require("./backend/routes/gameRoutes"));
 
 // ✅ 5. ERROR HANDLER
 const errorHandler = require("./middleware/errorHandler");

@@ -8,7 +8,10 @@ const cors = require("cors");
 const app = express();
 
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: [
+    "http://localhost:5173",
+    "https://card-game-phi-topaz.vercel.app"
+  ],
   credentials: true
 }));
 
@@ -26,15 +29,14 @@ app.use(session({
   saveUninitialized: false,
   cookie: {
     secure: false,
-    sameSite: "lax" // 👈 ADD THIS (important for cookies)
+    sameSite: "none" // 👈 ADD THIS (important for cookies)
   }
 }));
 
-// STATIC
-app.use(express.static(path.join(__dirname, "public")));
+
 
 // ROUTES (FIXED PATHS)
-app.use("/api/auth", require("./src/routes/authRoutes"));
-app.use("/api/game", require("./src/routes/gameRoutes"));
+app.use("/api/auth", require("./routes/authRoutes"));
+app.use("/api/game", require("./routes/gameRoutes"));
 
 app.listen(3000, () => console.log("Server running on 3000"));

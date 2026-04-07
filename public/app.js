@@ -1,4 +1,4 @@
-const API = "/api/game";
+const API = import.meta.env.VITE_API_URL + "/api";
 let spinInterval;
 let autoSpinActive = false;
 let spinning = false;
