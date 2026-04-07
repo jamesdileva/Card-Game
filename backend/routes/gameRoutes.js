@@ -890,57 +890,68 @@ router.post("/buy-upgrade", async (req, res) => {
 });
 
 router.post("/open-crate", async (req, res) => {
-  if (!(await requireLogin(req, res))) return;
+  try {
+    if (!(await requireLogin(req, res))) return;
 
-  const { type = "basic" } = req.body;
+    const { type = "basic" } = req.body;
 
-  const costMap = { basic: 100, premium: 250, elite: 500 };
-  const cost = costMap[type] || 100;
+    const costMap = { basic: 100, premium: 250, elite: 500 };
+    const cost = costMap[type] || 100;
 
-  const balRes = await pool.query(
-    "SELECT balance FROM users WHERE id=$1",
-    [req.session.userId]
-  );
-
-  let balance = balRes.rows[0].balance;
-
-  if (balance < cost)
-    return res.json({ error: "Not enough balance" });
-
-  balance -= cost;
-
-  await pool.query(
-    "UPDATE users SET balance=$1 WHERE id=$2",
-    [balance, req.session.userId]
-  );
-
-  const rarityPool = {
-    basic: ["common","common","rare"],
-    premium: ["common","rare","epic"],
-    elite: ["rare","epic","legendary"]
-  };
-
-  const rewards = [];
-  const { cards } = require("../game/cards"); // adjust path if needed
-
-  for (let i = 0; i < 2; i++) {
-    const rarity = rarityPool[type][Math.floor(Math.random()*rarityPool[type].length)];
-    const poolCards = cards.filter(c => c.rarity === rarity);
-    if (poolCards.length === 0) {
-      console.error("❌ No cards for rarity:", rarity);
-      continue; // skip this reward
-    }
-    const randomCard = poolCards[Math.floor(Math.random() * poolCards.length)];
-    const card_id = randomCard.id;
-    const result = await pool.query(
-      "INSERT INTO inventory (user_id, card_id, rarity) VALUES ($1,$2,$3) RETURNING card_id AS id, rarity",
-      [req.session.userId, card_id, rarity]
+    const balRes = await pool.query(
+      "SELECT balance FROM users WHERE id=$1",
+      [req.session.userId]
     );
 
-    rewards.push(result.rows[0]);
-  }
+    let balance = balRes.rows[0].balance;
 
-  res.json({ rewards, balance });
+    if (balance < cost) {
+      return res.json({ error: "Not enough balance" });
+    }
+
+    balance -= cost;
+
+    await pool.query(
+      "UPDATE users SET balance=$1 WHERE id=$2",
+      [balance, req.session.userId]
+    );
+
+    const rarityPool = {
+      basic: ["common","common","rare"],
+      premium: ["common","rare","epic"],
+      elite: ["rare","epic","legendary"]
+    };
+
+    const rewards = [];
+
+    const { cards } = require("../game/cards"); // check this path!
+
+    for (let i = 0; i < 2; i++) {
+      const rarity = rarityPool[type][Math.floor(Math.random() * rarityPool[type].length)];
+
+      const poolCards = cards.filter(c => c.rarity === rarity);
+
+      if (poolCards.length === 0) {
+        console.error("❌ No cards for rarity:", rarity);
+        continue;
+      }
+
+      const randomCard = poolCards[Math.floor(Math.random() * poolCards.length)];
+
+      const result = await pool.query(
+        "INSERT INTO inventory (user_id, card_id, rarity) VALUES ($1,$2,$3) RETURNING card_id AS id, rarity",
+        [req.session.userId, randomCard.id, rarity]
+      );
+
+      rewards.push(result.rows[0]);
+    }
+
+    res.json({ rewards, balance });
+
+  } catch (err) {
+    console.error("🔥 OPEN CRATE ERROR:", err);
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
 });
 
 module.exports = router;
