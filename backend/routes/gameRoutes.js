@@ -370,13 +370,14 @@ router.post("/set-deck", async (req, res) => {
       VALUES ($1, $2, $3)
       ON CONFLICT (user_id, slot)
       DO UPDATE SET card_id = EXCLUDED.card_id
-    `, [req.session.userId, i, newDeck[i]]);
+    `, [req.session.userId, i, newDeck[i] || null]);
 
     console.log("Rows affected:", result.rowCount);
   }
 
   res.json({ status: "ok" });
 });
+
 function getLevelReward(level) {
   return 200 + (level * 50);
 }
