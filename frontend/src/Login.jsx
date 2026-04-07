@@ -1,5 +1,5 @@
 import { useState } from "react";
-const API = import.meta.env.VITE_API_URL + "/api";
+const API = import.meta.env.VITE_API_URL + "api";
 export default function Login({ onLogin }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -45,7 +45,7 @@ export default function Login({ onLogin }) {
   }
 
   async function handleRegister() {
-    await  fetch(`${API}/auth/register` , {
+    await fetch(`${API}/auth/register` , {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
