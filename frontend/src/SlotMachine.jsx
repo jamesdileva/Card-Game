@@ -609,12 +609,20 @@ function rarityStyle(rarity) {
         
         {symbolEmoji(symbol)}
       </div>
-    );
-  })
-) : (
-  <div className="text-zinc-500">Spin to play</div>
-)}
+          );
+        })
+      ) : (
+        ["cherry","lemon","orange","grape","clover"].map((symbol, i) => (
+        <div
+          key={i}
+          className="w-20 h-20 bg-zinc-800 rounded-xl flex items-center justify-center text-4xl opacity-40 animate-pulse"
+        >
+          {symbolEmoji(symbol)}
+        </div>
+      ))
+      )}
 </div></div>
+
 {/* 💰 RESULT + 🎮 CONTROLS */}
 <div className="flex flex-col items-center mb-5">
 
@@ -786,8 +794,10 @@ function rarityStyle(rarity) {
                         {item?.rarity}
                       </div>
 
-                      <div className="text-sm text-center font-bold">
-                        {card}
+                      <div className="flex-1 flex items-center justify-center px-1">
+                        <div className="text-xs text-center font-bold break-words line-clamp-2">
+                          {card}
+                        </div>
                       </div>
 
                       <div className="text-[10px] text-center text-zinc-500">
@@ -839,7 +849,7 @@ function rarityStyle(rarity) {
                     {item.rarity}
                   </div>
 
-                  <div className="text-xs text-center font-bold">
+                  <div className="text-[11px] text-center font-bold leading-tight break-words line-clamp-2">
                     {item.id}
                   </div>
 
@@ -853,6 +863,7 @@ function rarityStyle(rarity) {
         </div>
       )}
     </div>
+
     {/*  CRATE RESULTS */}
       {crateResult && (
             <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
