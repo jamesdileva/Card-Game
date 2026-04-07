@@ -101,42 +101,57 @@ function rollRandomEvent() {
 router.get("/state", async (req, res) => {
   if (!(await requireLogin(req, res))) return;
 
-  const userId = req.session.userId;
-
-  // --- USER DATA ---
-  const userRes = await pool.query(
-    `SELECT 
-      balance,
-      xp,
-      level,
-      payout_boost,
-      xp_boost,
-      login_streak,
-      last_login
-     FROM users
-     WHERE id=$1`,
-    [userId]
+  // ✅ USER
+  const userResult = await pool.query(
+    "SELECT * FROM users WHERE id=$1",
+    [req.session.userId]
   );
 
-  const user = userRes.rows[0];
+  const user = userResult.rows[0];
 
-  // --- 🎴 GET DECK ---
-  const deckRes = await pool.query(
-    "SELECT card_id FROM deck WHERE user_id=$1 ORDER BY slot",
-    [userId]
+  // ✅ INVENTORY
+  const invResult = await pool.query(
+    "SELECT card_id, rarity FROM inventory WHERE user_id=$1",
+    [req.session.userId]
   );
 
-  const deck = deckRes.rows.map(r => r.card_id).filter(Boolean);
+  const stacked = {};
 
-  // --- 🎴 CALCULATE EFFECTS ---
-  let effects = calculateDeckEffects(deck);
+  invResult.rows.forEach(c => {
+    const id = c.card_id;
+
+    if (!stacked[id]) {
+      stacked[id] = {
+        id,
+        rarity: c.rarity || "common",
+        count: 1
+      };
+    } else {
+      stacked[id].count++;
+    }
+  });
+
+  const inventory = Object.values(stacked);
+
+  // ✅ DECK (🔥 FIXED)
+  const deckResult = await pool.query(`
+    SELECT slot, card_id
+    FROM deck
+    WHERE user_id = $1
+    ORDER BY slot
+  `, [req.session.userId]);
+
+  const deck = [null, null, null];
+
+  deckResult.rows.forEach(row => {
+    deck[row.slot] = row.card_id;
+  });
+
+  // ✅ EFFECTS
+  const effects = calculateDeckEffects(deck);
   calculateSynergies(deck, effects);
 
-  // --- 🎁 LOGIN REWARD (ONE-TIME) ---
-  const loginReward = req.session.loginReward || 0;
-  req.session.loginReward = 0;
-
-  // --- RESPONSE ---
+  // ✅ RESPONSE
   res.json({
     balance: user.balance,
     xp: user.xp,
@@ -145,11 +160,10 @@ router.get("/state", async (req, res) => {
     xpBoost: user.xp_boost || 1,
     loginStreak: user.login_streak || 1,
     lastLogin: user.last_login,
-    loginReward,
-
-    // 🔥 NEW (THIS FIXES YOUR UI ISSUE)
-    effects,
-    deck
+    loginReward: 0,
+    inventory,
+    deck,          // 🔥 NOW CORRECT
+    effects
   });
 });
 
@@ -517,7 +531,7 @@ function calculateSynergies(deck, effects) {
 router.post("/spin", async (req, res) => {
   if (!(await requireLogin(req, res))) return;
 
-  const { bet = 100, deck = [] } = req.body;
+  const { bet = 100, multiplier = 1, deck = [] } = req.body;
 
   // --- GET USER ---
   const userRes = await pool.query(
@@ -612,13 +626,19 @@ router.post("/spin", async (req, res) => {
 
   // --- 💎 APPLY PLAYER BOOST ---
   const boostedPayout = Math.floor(deckAdjustedPayout * user.payout_boost);
+  // 💰 SCALE PAYOUT BY BET SIZE
+  const baseBet = 100;
+  const betMultiplier = bet / baseBet;
 
+  payout = Math.floor(payout * betMultiplier);
   console.log("💰 PAYOUT BREAKDOWN:", {
     base: payout,
     deckMult: effects.payoutMult,
     afterDeck: deckAdjustedPayout,
     playerBoost: user.payout_boost,
+    player: betMultiplier,
     final: boostedPayout
+
   });
 
   // --- FINAL BALANCE ---
@@ -634,7 +654,7 @@ router.post("/spin", async (req, res) => {
   let streakBonus = 1 + (newStreak * 0.05);
 
   // apply bonus AFTER boosts
-  let finalPayout = Math.floor(boostedPayout * streakBonus);
+  let finalPayout = Math.floor(boostedPayout * streakBonus * multiplier);
 
   console.log("🔥 STREAK DEBUG:", {
     previous: currentStreak,
@@ -699,12 +719,14 @@ router.post("/spin", async (req, res) => {
     basePayout: payout,
     deckMult: effects.payoutMult,
     afterDeck: deckAdjustedPayout,
-    playerBoost: user.payout_boost,
+    payoutBoost: user.payout_boost,
+    xpBoost: user.xp_boost,
     afterPlayer: boostedPayout,
     streak: newStreak,
     final: finalPayout,
     levelRewards,
-    totalLevelReward
+    totalLevelReward,
+    event
   });
   console.log("XP CHECK:", {
     currentXP: user.xp,
@@ -745,7 +767,7 @@ router.post("/spin", async (req, res) => {
     xpBoost: user.xp_boost,
     effects,
     event,
-    newStreak,
+    streak: newStreak,
     levelRewards,
     totalLevelReward // ✅ NEW
   });

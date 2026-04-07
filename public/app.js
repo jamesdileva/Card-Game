@@ -64,18 +64,31 @@ function displayResult(data) {
   console.log("DISPLAY CALLED", data);
 
   const resultEl = document.getElementById("result");
+  const balanceEl = document.getElementById("balance");
+  const reelsEl = document.getElementById("slot-reels");
+
+  if (!resultEl || !balanceEl || !reelsEl) return;
 
   // 🎯 SAFE VALUES
   const payout = data?.payout ?? 0;
-
-  // RIGHT SIDE
-  const payoutMult = Number(data?.effects?.payoutMult) || 1;
-  const luck = Number(data?.effects?.luck) || 1;
+  const effects = data?.effects || {};
 
   // LEFT SIDE
-  const synergies = data?.effects?.synergies ?? [];
-  const eventLabel = data?.event?.label ?? null;
-  const streak = data?.newStreak ?? data?.streak ?? 0; // ✅ FIXED
+  const synergies = effects.synergies || [];
+  const streak = data?.newStreak ?? data?.streak ?? 0;
+
+  // --- EVENT HANDLING ---
+  // Support both old nested effect and new direct event
+  let eventLabel = "None";
+  if (data?.event?.label) {
+    eventLabel = data.event.label;
+  } else if (data?.event) {
+    // if event is just a string or object without label
+    if (typeof data.event === "string") eventLabel = data.event;
+    else if (data.event.name) eventLabel = data.event.name;
+  } else if (effects.eventLabel) {
+    eventLabel = effects.eventLabel;
+  }
 
   // =========================
   // 🎰 CENTER (PAYOUT ONLY)
@@ -89,27 +102,26 @@ function displayResult(data) {
   // =========================
   // ⬅️ LEFT SIDE
   // =========================
+  const deckEl = document.getElementById("deck-effects");
+  const eventEl = document.getElementById("event-display");
+  const streakEl = document.getElementById("streak-display");
 
-  // 🎴 Deck Effects
-  document.getElementById("deck-effects").innerText =
-    synergies.length ? synergies.join(" ") : "None";
-
-  // ⚡ Event
-  document.getElementById("event-display").innerText =
-    eventLabel || "None";
-
-  // 🔥 Streak (NO +1, true backend value)
-  document.getElementById("streak-display").innerText =
-    `x${streak}`;
+  if (deckEl) deckEl.innerText = synergies.length ? synergies.join(" ") : "None";
+  if (eventEl) eventEl.innerText = eventLabel.replace(/[^\x20-\x7E]/g, "");
+  if (streakEl) streakEl.innerText = `x${streak}`;
 
   // =========================
   // ➡️ RIGHT SIDE
   // =========================
-    // 🔥 ALWAYS RECALCULATE FROM DECK (consistent with load)
-    const effects = data.effects;
+  updateMultiplierUI(effects);
+  updateLeftUI(effects, data.event, streak);
 
-    updateMultiplierUI(effects);
-    updateLeftUI(effects);
+  // =========================
+  // BALANCE UPDATE
+  // =========================
+  if (data.balance !== undefined) {
+    balanceEl.innerText = `Balance: $${data.balance}`;
+  }
 }
 
 function handleDailyLogin(user) {
@@ -784,24 +796,37 @@ function updateMultiplierUI(effects) {
   }
 }
 
-function updateLeftUI(effects) {
+function updateLeftUI(effects, eventData, streakData) {
   const deckEl = document.getElementById("deck-effects");
   const eventEl = document.getElementById("event-display");
   const streakEl = document.getElementById("streak-display");
 
+  // ✅ Deck effects (unchanged)
   if (deckEl) {
     deckEl.innerText =
-      effects.synergies?.length
+      effects?.synergies?.length
         ? effects.synergies.join(" ")
         : "None";
   }
 
+  // ✅ EVENT (fallback-safe)
   if (eventEl) {
-    eventEl.innerText = "None"; // no event on load
+    const label =
+      eventData?.label ||           // ✅ correct source (from backend)
+      effects?.event?.label ||      // fallback if you ever add it there
+      "None";
+
+    eventEl.innerText = label;
   }
 
+  // ✅ STREAK (fallback-safe)
   if (streakEl) {
-    streakEl.innerText = "x0"; // no spin streak on load
+    const streak =
+      streakData ??                // ✅ from spin()
+      effects?.streak ??           // fallback (older logic)
+      0;
+
+    streakEl.innerText = `x${streak}`;
   }
 }
 
@@ -910,7 +935,7 @@ async function loadGame() {
 
     // --- UI UPDATE ---
     updateMultiplierUI(effects);
-    updateLeftUI(effects);
+    updateLeftUI(effects, data.event, data.newStreak ?? data.streak);
 
   } catch (err) {
     console.error("Load game failed:", err);

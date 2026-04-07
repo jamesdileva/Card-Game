@@ -4,21 +4,30 @@ const session = require("express-session");
 const pgSession = require("connect-pg-simple")(session);
 const pool = require("./db");
 const path = require("path");
-
+const cors = require("cors");
 const app = express();
+
+app.use(cors({
+  origin: "http://localhost:5173",
+  credentials: true
+}));
 
 app.use(express.json());
 
 // SESSION STORE
+// ✅ 3. SESSION (your existing code — KEEP THIS)
 app.use(session({
   store: new pgSession({
     pool,
-    createTableIfMissing: true // ✅ THIS LINE FIXES IT
+    createTableIfMissing: true
   }),
   secret: "secret-key",
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false }
+  cookie: {
+    secure: false,
+    sameSite: "lax" // 👈 ADD THIS (important for cookies)
+  }
 }));
 
 // STATIC
