@@ -24,7 +24,8 @@ app.get("/", (req, res) => {
   res.send("Backend is running ✅");
 });
 
-// ✅ SESSION
+const isProd = process.env.NODE_ENV === "production";
+
 app.use(session({
   store: new pgSession({
     pool,
@@ -34,8 +35,8 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "none"
+    secure: isProd,                         // ✅ HTTPS only in prod
+    sameSite: isProd ? "none" : "lax"       // ✅ FIX HERE
   }
 }));
 

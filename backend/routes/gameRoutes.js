@@ -620,41 +620,67 @@ router.post("/spin", async (req, res) => {
 
     console.log("💰 REROLL PAYOUT:", payout);
   }
+    // ========================
+    // 💰 CLEAN PAYOUT PIPELINE
+    // ========================
 
-  // --- 💰 APPLY DECK MULTIPLIER ---
-  const deckAdjustedPayout = Math.floor(payout * effects.payoutMult);
+    // --- BASE ---
+    let basePayout = payout;
 
-  // --- 💎 APPLY PLAYER BOOST ---
-  const boostedPayout = Math.floor(deckAdjustedPayout * user.payout_boost);
-  // 💰 SCALE PAYOUT BY BET SIZE
-  const baseBet = 100;
-  const betMultiplier = bet / baseBet;
+    // --- BET MULTIPLIER ---
+    const baseBet = 100;
+    const betMultiplier = bet / baseBet;
+    const betAdjustedPayout = Math.floor(basePayout * betMultiplier);
 
-  payout = Math.floor(payout * betMultiplier);
-  console.log("💰 PAYOUT BREAKDOWN:", {
-    base: payout,
-    deckMult: effects.payoutMult,
-    afterDeck: deckAdjustedPayout,
-    playerBoost: user.payout_boost,
-    player: betMultiplier,
-    final: boostedPayout
+    // --- DECK MULTIPLIER ---
+    const deckAdjustedPayout = Math.floor(
+      betAdjustedPayout * effects.payoutMult
+    );
 
-  });
+    // --- PLAYER BOOST ---
+    const boostedPayout = Math.floor(
+      deckAdjustedPayout * user.payout_boost
+    );
 
-  // --- FINAL BALANCE ---
-  const newBalance = user.balance - bet + boostedPayout;
+    // --- STREAK SYSTEM ---
+    let currentStreak = Number(user.win_streak) || 0;
 
-  // STREAK SYSTEM
-  // --- 🔥 STREAK SYSTEM (FIXED) ---
-  let currentStreak = Number(user.win_streak) || 0;
+    // determine win BEFORE streak bonus
+    let preStreakWin = boostedPayout * multiplier;
 
-  let newStreak = payout > 0 ? currentStreak + 1 : 0;
+    let newStreak = preStreakWin > 0 ? currentStreak + 1 : 0;
 
-  // streak bonus scaling
-  let streakBonus = 1 + (newStreak * 0.05);
+    let streakBonus = 1 + (newStreak * 0.05);
 
-  // apply bonus AFTER boosts
-  let finalPayout = Math.floor(boostedPayout * streakBonus * multiplier);
+    // --- FINAL PAYOUT ---
+    let finalPayout = Math.floor(
+      boostedPayout * streakBonus * multiplier
+    );
+
+    // --- FINAL BALANCE ---
+    const newBalance = user.balance - bet + finalPayout;
+
+    // ========================
+    // 🔍 DEBUG (CLEAN)
+    // ========================
+    console.log("💰 FINAL PIPELINE:", {
+      basePayout,
+      betMultiplier,
+      betAdjustedPayout,
+      deckMult: effects.payoutMult,
+      deckAdjustedPayout,
+      playerBoost: user.payout_boost,
+      boostedPayout,
+      streakBonus,
+      multiplier,
+      finalPayout
+    });
+
+    console.log("🔥 STREAK DEBUG:", {
+      previous: currentStreak,
+      new: newStreak,
+      bonus: streakBonus
+    });
 
   console.log("🔥 STREAK DEBUG:", {
     previous: currentStreak,
