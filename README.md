@@ -1,7 +1,7 @@
 https://card-game-1-odgy.onrender.com
 
 Let render spin up 
-then follow the link below:
+then follow the link below:\n
 https://card-game-phi-topaz.vercel.app/
 
 Sign up for an account you can use any information
