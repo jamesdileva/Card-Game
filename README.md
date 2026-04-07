@@ -10,7 +10,7 @@ then follow the link below:
 
 Sign up for an account you can use any information
 
-Enjoy some slots shouldnt be too hard to get rich
+Enjoy some slots 
 
 Theres deck cards to equip for more multipliers and luck
 
