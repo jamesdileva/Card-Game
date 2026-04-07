@@ -415,7 +415,7 @@ function rarityStyle(rarity) {
     }, 800);
 
     return () => clearInterval(interval);
-  }, [autoSpin, multiplier]);
+  }, [autoSpin, multiplier, deck]);
 
   // SET DECK 
    useEffect(() => {

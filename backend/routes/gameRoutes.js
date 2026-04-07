@@ -566,10 +566,6 @@ router.post("/spin", async (req, res) => {
   if (event) {
     console.log("⚡ EVENT TRIGGERED:", event);
 
-    if (event.type === "DOUBLE_PAYOUT") {
-      effects.payoutMult *= event.mult;
-    }
-
     if (event.type === "DOUBLE_XP") {
       effects.xpMult *= event.mult;
     }
@@ -654,6 +650,10 @@ router.post("/spin", async (req, res) => {
     let finalPayout = Math.floor(
       boostedPayout * streakBonus
     );
+    
+    if (event.type === "DOUBLE_PAYOUT") {
+      effects.payoutMult *= event.mult;
+    }
 
     // --- FINAL BALANCE ---
     const newBalance = user.balance - bet + finalPayout;
