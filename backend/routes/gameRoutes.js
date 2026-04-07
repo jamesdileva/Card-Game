@@ -531,8 +531,16 @@ function calculateSynergies(deck, effects) {
 router.post("/spin", async (req, res) => {
   if (!(await requireLogin(req, res))) return;
 
-  const { bet = 100, multiplier = 1, deck = [] } = req.body;
+  const { bet = 100, multiplier = 1 } = req.body;
+  const deckResult = await pool.query(
+    "SELECT slot, card_id FROM deck WHERE user_id=$1 ORDER BY slot",
+    [req.session.userId]
+  );
 
+  const deck = [null, null, null];
+  deckResult.rows.forEach(row => {
+    deck[row.slot] = row.card_id;
+  });
   // --- GET USER ---
   const userRes = await pool.query(
     `SELECT balance, xp, level, payout_boost, xp_boost, win_streak, last_rewarded_level
@@ -646,15 +654,21 @@ router.post("/spin", async (req, res) => {
 
     let streakBonus = 1 + (newStreak * 0.05);
 
-    // --- FINAL PAYOUT ---
+   // --- FINAL PAYOUT ---
     let finalPayout = Math.floor(
       boostedPayout * streakBonus
     );
-    
-    if (event.type === "DOUBLE_PAYOUT") {
-      effects.payoutMult *= event.mult;
+
+    // ⚡ APPLY EVENT TO FINAL
+    if (event?.type === "DOUBLE_PAYOUT") {
+      finalPayout = Math.floor(finalPayout * event.mult);
     }
 
+    console.log("⚡ EVENT EFFECT:", {
+      type: event?.type,
+      appliedTo: "finalPayout",
+      finalAfterEvent: finalPayout
+    });
     // --- FINAL BALANCE ---
     const newBalance = user.balance - bet + finalPayout;
 

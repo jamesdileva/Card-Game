@@ -383,7 +383,7 @@ function rarityStyle(rarity) {
               body: JSON.stringify({
                 bet: 100 * multiplier,
                 multiplier,
-                deck
+                
               })
             });
 
@@ -415,7 +415,7 @@ function rarityStyle(rarity) {
     }, 800);
 
     return () => clearInterval(interval);
-  }, [autoSpin, multiplier, deck]);
+  }, [autoSpin, multiplier]);
 
   // SET DECK 
    useEffect(() => {
