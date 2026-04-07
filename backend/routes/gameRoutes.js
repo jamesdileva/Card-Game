@@ -646,15 +646,13 @@ router.post("/spin", async (req, res) => {
     let currentStreak = Number(user.win_streak) || 0;
 
     // determine win BEFORE streak bonus
-    let preStreakWin = boostedPayout * multiplier;
-
-    let newStreak = preStreakWin > 0 ? currentStreak + 1 : 0;
+    let newStreak = boostedPayout > 0 ? currentStreak + 1 : 0;
 
     let streakBonus = 1 + (newStreak * 0.05);
 
     // --- FINAL PAYOUT ---
     let finalPayout = Math.floor(
-      boostedPayout * streakBonus * multiplier
+      boostedPayout * streakBonus
     );
 
     // --- FINAL BALANCE ---
