@@ -357,7 +357,6 @@ router.post("/dev-reset", async (req, res) => {
     res.status(500).json({ error: "Reset failed" });
   }
 });
-
 router.post("/set-deck", async (req, res) => {
   if (!(await requireLogin(req, res))) return;
 
@@ -365,14 +364,16 @@ router.post("/set-deck", async (req, res) => {
   console.log("📥 Incoming deck:", newDeck);
 
   for (let i = 0; i < 3; i++) {
+    const cardId = newDeck[i] || null; // ✅ FIX
+
     const result = await pool.query(`
       INSERT INTO deck (user_id, slot, card_id)
       VALUES ($1, $2, $3)
       ON CONFLICT (user_id, slot)
       DO UPDATE SET card_id = EXCLUDED.card_id
-    `, [req.session.userId, i, newDeck[i] || null]);
+    `, [req.session.userId, i, cardId]);
 
-    console.log("Rows affected:", result.rowCount);
+    console.log("Slot", i, "→", cardId);
   }
 
   res.json({ status: "ok" });
