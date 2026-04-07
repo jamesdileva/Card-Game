@@ -34,7 +34,7 @@ const [winFaded, setWinFaded] = useState(false);
 const [spinningReels, setSpinningReels] = useState([false, false, false, false, false]);
 const audioCtxRef = useRef(null);
 const validDropRef = useRef(false);
-const API = import.meta.env.VITE_API_URL + "/api";
+const API = import.meta.env.VITE_API_URL + "api";
 
 
 useEffect(() => {
