@@ -434,7 +434,28 @@ function rarityStyle(rarity) {
       });
 
     }, [deck]);
+    useEffect(() => {
+      
+  async function saveDeck() {
+    try {
+      console.log("💾 SAVING DECK:", deck);
 
+      await fetch(`${API}/game/set-deck`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          newDeck: deck
+        })
+      });
+
+    } catch (err) {
+      console.error("Failed to save deck:", err);
+    }
+  }
+
+  saveDeck();
+}, [deck]);
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white flex flex-col items-center p-6">
     
