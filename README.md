@@ -3,7 +3,7 @@
 ## https://card-game-1-odgy.onrender.com
 
 
-Let render spin up 
+Let render spin up for about 1 minute
 then follow the link below:
 
 ## https://card-game-phi-topaz.vercel.app/
