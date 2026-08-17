@@ -1,8 +1,8 @@
 require("dotenv").config();
 const express = require("express");
 const session = require("express-session");
-const pgSession = require("connect-pg-simple")(session);
-const pool = require("./db");
+const db = require("./db");
+const SqliteSessionStore = require("./sessionStore");
 const cors = require("cors");
 
 const app = express();
@@ -27,10 +27,7 @@ app.get("/", (req, res) => {
 const isProd = process.env.NODE_ENV === "production";
 
 app.use(session({
-  store: new pgSession({
-    pool,
-    createTableIfMissing: true
-  }),
+  store: new SqliteSessionStore(db),
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,

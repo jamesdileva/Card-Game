@@ -1,16 +1,7 @@
 const express = require("express");
 const router = express.Router();
-const { Pool } = require("pg");
 const bcrypt = require("bcrypt");
-
-
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
-});
-pool.connect()
-  .then(() => console.log("✅ PostgreSQL connected"))
-  .catch(err => console.error("❌ DB connection error", err));
+const db = require("../db");
 
 // --- HELPER ---
 async function requireLogin(req, res) {
@@ -19,12 +10,11 @@ async function requireLogin(req, res) {
     return false;
   }
 
-  const user = await pool.query(
-    "SELECT id FROM users WHERE id=$1",
-    [req.session.userId]
-  );
+  const user = db
+    .prepare("SELECT id FROM users WHERE id=?")
+    .get(req.session.userId);
 
-  if (user.rows.length === 0) {
+  if (!user) {
     req.session.destroy();
     res.status(401).json({ error: "Session expired" });
     return false;
@@ -63,36 +53,6 @@ function rollRandomEvent() {
   }
 }
 
-// --- INIT TABLES ---
-(async () => {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      username TEXT UNIQUE,
-      password TEXT,
-      balance INT DEFAULT 1000
-    );
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS inventory (
-      id SERIAL PRIMARY KEY,
-      user_id INT,
-      card_id TEXT,
-      rarity TEXT
-    );
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS deck (
-      id SERIAL PRIMARY KEY,
-      user_id INT,
-      slot INT,
-      card_id TEXT
-    );
-  `);
-})();
-
 
 // ====================
 // GAME ROUTES
@@ -102,22 +62,18 @@ router.get("/state", async (req, res) => {
   if (!(await requireLogin(req, res))) return;
 
   // ✅ USER
-  const userResult = await pool.query(
-    "SELECT * FROM users WHERE id=$1",
-    [req.session.userId]
-  );
-
-  const user = userResult.rows[0];
+  const user = db
+    .prepare("SELECT * FROM users WHERE id=?")
+    .get(req.session.userId);
 
   // ✅ INVENTORY
-  const invResult = await pool.query(
-    "SELECT card_id, rarity FROM inventory WHERE user_id=$1",
-    [req.session.userId]
-  );
+  const invResult = db
+    .prepare("SELECT card_id, rarity FROM inventory WHERE user_id=?")
+    .all(req.session.userId);
 
   const stacked = {};
 
-  invResult.rows.forEach(c => {
+  invResult.forEach(c => {
     const id = c.card_id;
 
     if (!stacked[id]) {
@@ -134,16 +90,16 @@ router.get("/state", async (req, res) => {
   const inventory = Object.values(stacked);
 
   // ✅ DECK (🔥 FIXED)
-  const deckResult = await pool.query(`
+  const deckResult = db.prepare(`
     SELECT slot, card_id
     FROM deck
-    WHERE user_id = $1
+    WHERE user_id = ?
     ORDER BY slot
-  `, [req.session.userId]);
+  `).all(req.session.userId);
 
   const deck = [null, null, null];
 
-  deckResult.rows.forEach(row => {
+  deckResult.forEach(row => {
     deck[row.slot] = row.card_id;
   });
 
@@ -170,14 +126,13 @@ router.get("/state", async (req, res) => {
 router.get("/inventory", async (req, res) => {
   if (!(await requireLogin(req, res))) return;
 
-  const result = await pool.query(
-    "SELECT card_id, rarity FROM inventory WHERE user_id=$1",
-    [req.session.userId]
-  );
+  const result = db
+    .prepare("SELECT card_id, rarity FROM inventory WHERE user_id=?")
+    .all(req.session.userId);
 
   const stacked = {};
 
-  result.rows.forEach(c => {
+  result.forEach(c => {
     const id = c.card_id;
 
     if (!stacked[id]) {
@@ -200,10 +155,9 @@ router.post("/dev-add-card", async (req, res) => {
 
   if (!userId) return res.status(401).json({ error: "Not logged in" });
 
-  await pool.query(
-    "INSERT INTO inventory (user_id, card_id, rarity) VALUES ($1,$2,$3)",
-    [userId, card_id, rarity || "common"]
-  );
+  db.prepare(
+    "INSERT INTO inventory (user_id, card_id, rarity) VALUES (?,?,?)"
+  ).run(userId, card_id, rarity || "common");
 
   res.json({ success: true });
 });
@@ -214,27 +168,24 @@ router.post("/reset-account", async (req, res) => {
   if (!userId) return res.status(401).json({ error: "Not logged in" });
 
   // 🔥 CLEAR INVENTORY
-  await pool.query("DELETE FROM inventory WHERE user_id=$1", [userId]);
+  db.prepare("DELETE FROM inventory WHERE user_id=?").run(userId);
 
   // 🔥 RESET BALANCE
-  await pool.query(
-    "UPDATE users SET balance = 1000 WHERE id=$1",
-    [userId]
-  );
+  db.prepare(
+    "UPDATE users SET balance = 1000 WHERE id=?"
+  ).run(userId);
 
   // 🔥 RESET DECK
-  await pool.query(
-    "UPDATE deck SET card_id = NULL WHERE user_id=$1",
-    [userId]
-  );
+  db.prepare(
+    "UPDATE deck SET card_id = NULL WHERE user_id=?"
+  ).run(userId);
 
   // ✅ VERIFY (REAL DEBUG)
-  const check = await pool.query(
-    "SELECT * FROM inventory WHERE user_id=$1",
-    [userId]
-  );
+  const check = db
+    .prepare("SELECT * FROM inventory WHERE user_id=?")
+    .all(userId);
 
-  console.log("AFTER DELETE:", check.rows); // should be []
+  console.log("AFTER DELETE:", check); // should be []
 
   res.json({ success: true });
 });
@@ -246,10 +197,9 @@ router.post("/clear-inventory", async (req, res) => {
     return res.status(401).json({ error: "Not logged in" });
   }
 
-  await pool.query(
-    "DELETE FROM inventory WHERE user_id = $1",
-    [userId]
-  );
+  db.prepare(
+    "DELETE FROM inventory WHERE user_id = ?"
+  ).run(userId);
 
   res.json({ success: true });
 });
@@ -263,18 +213,16 @@ router.post("/add-balance", async (req, res) => {
     }
 
     // ✅ Add 10,000 (not 1,000)
-    await pool.query(
-      "UPDATE users SET balance = balance + 10000 WHERE id = $1",
-      [userId]
-    );
+    db.prepare(
+      "UPDATE users SET balance = balance + 10000 WHERE id = ?"
+    ).run(userId);
 
     // ✅ RETURN UPDATED BALANCE
-    const result = await pool.query(
-      "SELECT balance FROM users WHERE id = $1",
-      [userId]
-    );
+    const result = db
+      .prepare("SELECT balance FROM users WHERE id = ?")
+      .get(userId);
 
-    res.json({ balance: result.rows[0].balance });
+    res.json({ balance: result.balance });
 
   } catch (err) {
     console.error(err);
@@ -287,25 +235,24 @@ router.post("/add-balance", async (req, res) => {
 router.get("/deck", async (req, res) => {
   if (!(await requireLogin(req, res))) return;
 
-  const result = await pool.query(`
+  const result = db.prepare(`
     SELECT d.slot, d.card_id, i.rarity
     FROM deck d
     LEFT JOIN inventory i
     ON d.card_id = i.card_id AND i.user_id = d.user_id
-    WHERE d.user_id = $1
+    WHERE d.user_id = ?
     ORDER BY d.slot
-  `, [req.session.userId]);
+  `).all(req.session.userId);
 
-    if (result.rows.length === 0) {
+    if (result.length === 0) {
   for (let i = 0; i < 3; i++) {
-    await pool.query(
-      "INSERT INTO deck (user_id, slot, card_id) VALUES ($1, $2, NULL)",
-      [req.session.userId, i]
-    );
+    db.prepare(
+      "INSERT INTO deck (user_id, slot, card_id) VALUES (?, ?, NULL)"
+    ).run(req.session.userId, i);
   }
 }
   const deck = [null, null, null];
-  result.rows.forEach(row => {
+  result.forEach(row => {
     deck[row.slot] = row.card_id
     ? { id: row.card_id, rarity: row.rarity || "common" }
     : null;
@@ -329,25 +276,23 @@ router.post("/dev-reset", async (req, res) => {
     }
 
     // Reset balance
-    await pool.query(
-      "UPDATE users SET balance = 10000 WHERE id = $1",
-      [userId]
-    );
+    db.prepare(
+      "UPDATE users SET balance = 10000 WHERE id = ?"
+    ).run(userId);
 
     // Clear inventory
-    await pool.query(
-      "DELETE FROM inventory WHERE user_id = $1",
-      [userId]
-    );
+    db.prepare(
+      "DELETE FROM inventory WHERE user_id = ?"
+    ).run(userId);
 
     // Reset deck
     for (let i = 0; i < 3; i++) {
-      await pool.query(`
+      db.prepare(`
         INSERT INTO deck (user_id, slot, card_id)
-        VALUES ($1, $2, NULL)
+        VALUES (?, ?, NULL)
         ON CONFLICT (user_id, slot)
         DO UPDATE SET card_id = NULL
-      `, [userId, i]);
+      `).run(userId, i);
     }
 
     res.json({ success: true, message: "Dev reset complete" });
@@ -366,12 +311,12 @@ router.post("/set-deck", async (req, res) => {
   for (let i = 0; i < 3; i++) {
     const cardId = newDeck[i] || null; // ✅ FIX
 
-    const result = await pool.query(`
+    db.prepare(`
       INSERT INTO deck (user_id, slot, card_id)
-      VALUES ($1, $2, $3)
+      VALUES (?, ?, ?)
       ON CONFLICT (user_id, slot)
-      DO UPDATE SET card_id = EXCLUDED.card_id
-    `, [req.session.userId, i, cardId]);
+      DO UPDATE SET card_id = excluded.card_id
+    `).run(req.session.userId, i, cardId);
 
     console.log("Slot", i, "→", cardId);
   }
@@ -534,28 +479,24 @@ router.post("/spin", async (req, res) => {
   if (!(await requireLogin(req, res))) return;
 
   const { bet = 100, multiplier = 1 } = req.body;
-  const deckResult = await pool.query(
-    "SELECT slot, card_id FROM deck WHERE user_id=$1 ORDER BY slot",
-    [req.session.userId]
-  );
+  const deckResult = db
+    .prepare("SELECT slot, card_id FROM deck WHERE user_id=? ORDER BY slot")
+    .all(req.session.userId);
 
   const deck = [null, null, null];
-  deckResult.rows.forEach(row => {
+  deckResult.forEach(row => {
     deck[row.slot] = row.card_id;
   });
   // --- GET USER ---
-  const userRes = await pool.query(
-    `SELECT balance, xp, level, payout_boost, xp_boost, win_streak, last_rewarded_level
+  const user = db.prepare(`
+    SELECT balance, xp, level, payout_boost, xp_boost, win_streak, last_rewarded_level
     FROM users
-    WHERE id = $1`,
-    [req.session.userId]
-  );
+    WHERE id = ?
+  `).get(req.session.userId);
 
-  if (userRes.rows.length === 0) {
+  if (!user) {
     return res.status(401).json({ error: "User not found" });
   }
-
-  let user = userRes.rows[0];
 
   if (user.balance < bet) {
     return res.json({ error: "Not enough balance" });
@@ -777,23 +718,22 @@ router.post("/spin", async (req, res) => {
 
 
   // --- SAVE ---
-  await pool.query(
-    `UPDATE users 
+  db.prepare(`
+    UPDATE users 
     SET 
-      balance = $1,
-      xp = $2,
-      level = $3,
-      win_streak = $4,
-      last_rewarded_level = $5
-    WHERE id = $6`,
-    [
+      balance = ?,
+      xp = ?,
+      level = ?,
+      win_streak = ?,
+      last_rewarded_level = ?
+    WHERE id = ?
+  `).run(
       newBalance + totalLevelReward, // ✅ APPLY REWARD HERE
       newXP,
       newLevel,
       newStreak,
       newLevel, // ✅ SAVE LAST REWARDED LEVEL
       req.session.userId
-    ]
   );
 
   // --- RESPONSE ---
@@ -819,12 +759,9 @@ router.post("/upgrade/payout", async (req, res) => {
 
   const userId = req.session.userId;
 
-  const result = await pool.query(
-    "SELECT balance, payout_boost FROM users WHERE id=$1",
-    [userId]
-  );
-
-  const user = result.rows[0];
+  const user = db
+    .prepare("SELECT balance, payout_boost FROM users WHERE id=?")
+    .get(userId);
 
   const cost = 1000;
 
@@ -835,10 +772,9 @@ router.post("/upgrade/payout", async (req, res) => {
   const newBoost = parseFloat(user.payout_boost) + 0.1;
   const newBalance = user.balance - cost;
 
-  await pool.query(
-    "UPDATE users SET balance=$1, payout_boost=$2 WHERE id=$3",
-    [newBalance, newBoost, userId]
-  );
+  db.prepare(
+    "UPDATE users SET balance=?, payout_boost=? WHERE id=?"
+  ).run(newBalance, newBoost, userId);
 
   res.json({
     success: true,
@@ -854,12 +790,9 @@ router.post("/upgrade/xp", async (req, res) => {
 
   const userId = req.session.userId;
 
-  const result = await pool.query(
-    "SELECT balance, xp_boost FROM users WHERE id=$1",
-    [userId]
-  );
-
-  const user = result.rows[0];
+  const user = db
+    .prepare("SELECT balance, xp_boost FROM users WHERE id=?")
+    .get(userId);
 
   const cost = 1000;
 
@@ -870,10 +803,9 @@ router.post("/upgrade/xp", async (req, res) => {
   const newBoost = parseFloat(user.xp_boost || 1) + 0.2;
   const newBalance = user.balance - cost;
 
-  await pool.query(
-    "UPDATE users SET balance=$1, xp_boost=$2 WHERE id=$3",
-    [newBalance, newBoost, userId]
-  );
+  db.prepare(
+    "UPDATE users SET balance=?, xp_boost=? WHERE id=?"
+  ).run(newBalance, newBoost, userId);
 
   res.json({
     success: true,
@@ -885,12 +817,9 @@ router.post("/upgrade/xp", async (req, res) => {
 router.get("/progression", async (req, res) => {
   const userId = req.session.userId;
 
-  const { rows } = await pool.query(
-    "SELECT xp, level, payout_boost FROM users WHERE id=$1",
-    [userId]
-  );
-
-  const player = rows[0];
+  const player = db
+    .prepare("SELECT xp, level, payout_boost FROM users WHERE id=?")
+    .get(userId);
 
   res.json({
     xp: player.xp,
@@ -902,12 +831,9 @@ router.get("/progression", async (req, res) => {
 router.post("/buy-upgrade", async (req, res) => {
   const userId = req.session.userId;
 
-  const { rows } = await pool.query(
-    "SELECT balance, payout_boost FROM users WHERE id=$1",
-    [userId]
-  );
-
-  const player = rows[0];
+  const player = db
+    .prepare("SELECT balance, payout_boost FROM users WHERE id=?")
+    .get(userId);
 
   const cost = 1000;
 
@@ -918,10 +844,9 @@ router.post("/buy-upgrade", async (req, res) => {
   player.balance -= cost;
   player.payout_boost += 0.1;
 
-  await db.query(
-    "UPDATE users SET balance=$1, payout_boost=$2 WHERE id=$3",
-    [player.balance, player.payout_boost, userId]
-  );
+  db.prepare(
+    "UPDATE users SET balance=?, payout_boost=? WHERE id=?"
+  ).run(player.balance, player.payout_boost, userId);
 
   res.json({
     balance: player.balance,
@@ -938,12 +863,11 @@ router.post("/open-crate", async (req, res) => {
     const costMap = { basic: 100, premium: 250, elite: 500 };
     const cost = costMap[type] || 100;
 
-    const balRes = await pool.query(
-      "SELECT balance FROM users WHERE id=$1",
-      [req.session.userId]
-    );
+    const balRes = db
+      .prepare("SELECT balance FROM users WHERE id=?")
+      .get(req.session.userId);
 
-    let balance = balRes.rows[0].balance;
+    let balance = balRes.balance;
 
     if (balance < cost) {
       return res.json({ error: "Not enough balance" });
@@ -951,10 +875,9 @@ router.post("/open-crate", async (req, res) => {
 
     balance -= cost;
 
-    await pool.query(
-      "UPDATE users SET balance=$1 WHERE id=$2",
-      [balance, req.session.userId]
-    );
+    db.prepare(
+      "UPDATE users SET balance=? WHERE id=?"
+    ).run(balance, req.session.userId);
 
     const rarityPool = {
       basic: ["common","common","rare"],
@@ -978,12 +901,13 @@ router.post("/open-crate", async (req, res) => {
 
       const randomCard = poolCards[Math.floor(Math.random() * poolCards.length)];
 
-      const result = await pool.query(
-        "INSERT INTO inventory (user_id, card_id, rarity) VALUES ($1,$2,$3) RETURNING card_id AS id, rarity",
-        [req.session.userId, randomCard.id, rarity]
-      );
+      const result = db
+        .prepare(
+          "INSERT INTO inventory (user_id, card_id, rarity) VALUES (?,?,?) RETURNING card_id AS id, rarity"
+        )
+        .get(req.session.userId, randomCard.id, rarity);
 
-      rewards.push(result.rows[0]);
+      rewards.push(result);
     }
 
     res.json({ rewards, balance });

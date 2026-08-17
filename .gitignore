@@ -13,6 +13,9 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
+# sqlite database (local storage)
+cardgame.db*
+
 # VS Code settings (optional)
 .vscode/
 

@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
-const pool = require("../db");
+const db = require("../db");
 
 // ====================
 // REGISTER
@@ -16,19 +16,19 @@ router.post("/register", async (req, res) => {
   const hash = await bcrypt.hash(password, 10);
 
   try {
-    const result = await pool.query(
-      "INSERT INTO users (username, password) VALUES ($1,$2) RETURNING id",
-      [username, hash]
-    );
+    const result = db
+      .prepare(
+        "INSERT INTO users (username, password) VALUES (?, ?) RETURNING id"
+      )
+      .get(username, hash);
 
-    const userId = result.rows[0].id;
+    const userId = result.id;
 
     // create empty deck
     for (let i = 0; i < 3; i++) {
-      await pool.query(
-        "INSERT INTO deck (user_id, slot, card_id) VALUES ($1,$2,NULL)",
-        [userId, i]
-      );
+      db.prepare(
+        "INSERT INTO deck (user_id, slot, card_id) VALUES (?, ?, NULL)"
+      ).run(userId, i);
     }
 
     res.json({ success: true });
@@ -45,12 +45,9 @@ router.post("/register", async (req, res) => {
 router.post("/login", async (req, res) => {
   const { username, password } = req.body;
 
-  const result = await pool.query(
-    "SELECT * FROM users WHERE username=$1",
-    [username]
-  );
-
-  const user = result.rows[0];
+  const user = db
+    .prepare("SELECT * FROM users WHERE username=?")
+    .get(username);
 
   if (!user) {
     return res.status(401).json({ error: "Invalid login" });
@@ -95,14 +92,13 @@ router.post("/login", async (req, res) => {
 
   // 💰 APPLY REWARD
   if (reward > 0) {
-    await pool.query(
+    db.prepare(
       `UPDATE users 
-       SET balance = balance + $1,
-           login_streak = $2,
-           last_login = $3
-       WHERE id = $4`,
-      [reward, streak, today, user.id]
-    );
+       SET balance = balance + ?,
+           login_streak = ?,
+           last_login = ?
+       WHERE id = ?`
+    ).run(reward, streak, today, user.id);
   }
 
   // ✅ SESSION
