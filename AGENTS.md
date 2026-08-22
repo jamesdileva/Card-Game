@@ -43,6 +43,23 @@ Notes:
 
 ## Changelog / History
 
+### 2026-08-22 — Security fixes + logout endpoint (roadmap items 1–2)
+
+- Added `devOnly` middleware in `backend/routes/gameRoutes.js`: dev/debug
+  routes (`/dev-add-card`, `/add-balance`, `/reset-account`,
+  `/clear-inventory`, `/dev-reset`) now return 404 when
+  `NODE_ENV=production`; still work locally (401 without session).
+- Added `POST /api/auth/logout` to `authRoutes.js` (destroys session,
+  clears `connect.sid` cookie). Frontend's logout button now works.
+- Stripped ~20 debug `console.log` calls from the spin/deck pipeline and
+  removed the commented-out `FORCE LEVEL UP` hack. `console.error` kept
+  in catch blocks.
+- Verified: `npm test` (10 pass), server boots, prod-mode smoke test shows
+  dev routes 404 + logout 200.
+- Decision: API/pipeline tests deferred until the spin logic is extracted
+  out of route handlers (roadmap "Deduplicate logic" item) — then they can
+  be unit-tested directly instead of needing an HTTP harness.
+
 ### 2026-08-22 — Docs rewrite, legacy cleanup, test suite
 
 - Removed legacy root-level prototype: `app.js`, `index.html`, `style.css`,

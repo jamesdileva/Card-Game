@@ -28,6 +28,14 @@ function xpToNext(level) {
   return level * 100;
 }
 
+// Dev/debug routes must never run against production.
+function devOnly(req, res, next) {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(404).json({ error: "Not found" });
+  }
+  next();
+}
+
 function applyXP(player, xpGain) {
   player.xp += xpGain;
 
@@ -149,7 +157,7 @@ router.get("/inventory", async (req, res) => {
   res.json({ inventory: Object.values(stacked) });
 });
 
-router.post("/dev-add-card", async (req, res) => {
+router.post("/dev-add-card", devOnly, async (req, res) => {
   const userId = req.session.userId;
   const { card_id, rarity } = req.body;
 
@@ -162,7 +170,7 @@ router.post("/dev-add-card", async (req, res) => {
   res.json({ success: true });
 });
 
-router.post("/reset-account", async (req, res) => {
+router.post("/reset-account", devOnly, async (req, res) => {
   const userId = req.session.userId;
 
   if (!userId) return res.status(401).json({ error: "Not logged in" });
@@ -180,17 +188,10 @@ router.post("/reset-account", async (req, res) => {
     "UPDATE deck SET card_id = NULL WHERE user_id=?"
   ).run(userId);
 
-  // ✅ VERIFY (REAL DEBUG)
-  const check = db
-    .prepare("SELECT * FROM inventory WHERE user_id=?")
-    .all(userId);
-
-  console.log("AFTER DELETE:", check); // should be []
-
   res.json({ success: true });
 });
 
-router.post("/clear-inventory", async (req, res) => {
+router.post("/clear-inventory", devOnly, async (req, res) => {
   const userId = req.session.userId;
 
   if (!userId) {
@@ -204,7 +205,7 @@ router.post("/clear-inventory", async (req, res) => {
   res.json({ success: true });
 });
 
-router.post("/add-balance", async (req, res) => {
+router.post("/add-balance", devOnly, async (req, res) => {
   try {
     const userId = req.session.userId;
 
@@ -258,8 +259,6 @@ router.get("/deck", async (req, res) => {
     : null;
   });
 
-  console.log("📤 Sending deck:", deck); // DEBUG
-  console.log("FINAL DECK SENT:", deck);
   res.json({ deck });
 });
 
@@ -267,7 +266,7 @@ router.get("/deck", async (req, res) => {
 // DEV ROUTES (ONLY USE IN DEV)
 // ====================
 
-router.post("/dev-reset", async (req, res) => {
+router.post("/dev-reset", devOnly, async (req, res) => {
   try {
     const userId = req.session.userId;
 
@@ -306,7 +305,6 @@ router.post("/set-deck", async (req, res) => {
   if (!(await requireLogin(req, res))) return;
 
   const { newDeck } = req.body;
-  console.log("📥 Incoming deck:", newDeck);
 
   for (let i = 0; i < 3; i++) {
     const cardId = newDeck[i] || null; // ✅ FIX
@@ -317,8 +315,6 @@ router.post("/set-deck", async (req, res) => {
       ON CONFLICT (user_id, slot)
       DO UPDATE SET card_id = excluded.card_id
     `).run(req.session.userId, i, cardId);
-
-    console.log("Slot", i, "→", cardId);
   }
 
   res.json({ status: "ok" });
@@ -515,8 +511,6 @@ router.post("/spin", async (req, res) => {
   let event = rollRandomEvent();
 
   if (event) {
-    console.log("⚡ EVENT TRIGGERED:", event);
-
     if (event.type === "DOUBLE_XP") {
       effects.xpMult *= event.mult;
     }
@@ -527,15 +521,10 @@ router.post("/spin", async (req, res) => {
   }
 
   // --- DEBUG ---
-  console.log("🎴 DECK INPUT:", deck);
-  console.log("✨ EFFECTS:", effects);
-
   // --- 🎰 SPIN REELS ---
   let reels = Array.from({ length: 5 }, () =>
     symbols[Math.floor(Math.random() * symbols.length)]
   );
-
-  console.log("🎰 INITIAL REELS:", reels);
 
   // --- 💰 BASE PAYOUT ---
   let payout = 0;
@@ -545,27 +534,17 @@ router.post("/spin", async (req, res) => {
   else if (unique === 2) payout = 500;
   else if (unique === 3) payout = 200;
 
-  console.log("💰 BASE PAYOUT:", payout);
-
   // --- 🔁 REROLL BAD SPINS ---
   if (payout === 0 && Math.random() < effects.rerollChance) {
-    console.log("🔁 REROLL TRIGGERED", {
-      chance: effects.rerollChance
-    });
-
     reels = Array.from({ length: 5 }, () =>
       symbols[Math.floor(Math.random() * symbols.length)]
     );
-
-    console.log("🎰 REROLLED REELS:", reels);
 
     unique = new Set(reels).size;
 
     if (unique === 1) payout = 1000;
     else if (unique === 2) payout = 500;
     else if (unique === 3) payout = 200;
-
-    console.log("💰 REROLL PAYOUT:", payout);
   }
     // ========================
     // 💰 CLEAN PAYOUT PIPELINE
@@ -607,50 +586,14 @@ router.post("/spin", async (req, res) => {
       finalPayout = Math.floor(finalPayout * event.mult);
     }
 
-    console.log("⚡ EVENT EFFECT:", {
-      type: event?.type,
-      appliedTo: "finalPayout",
-      finalAfterEvent: finalPayout
-    });
     // --- FINAL BALANCE ---
     const newBalance = user.balance - bet + finalPayout;
 
-    // ========================
-    // 🔍 DEBUG (CLEAN)
-    // ========================
-    console.log("💰 FINAL PIPELINE:", {
-      basePayout,
-      betMultiplier,
-      betAdjustedPayout,
-      deckMult: effects.payoutMult,
-      deckAdjustedPayout,
-      playerBoost: user.payout_boost,
-      boostedPayout,
-      streakBonus,
-      multiplier,
-      finalPayout
-    });
-
-    console.log("🔥 STREAK DEBUG:", {
-      previous: currentStreak,
-      new: newStreak,
-      bonus: streakBonus
-    });
-
-  console.log("🔥 STREAK DEBUG:", {
-    previous: currentStreak,
-    new: newStreak,
-    bonus: streakBonus,
-    payoutBefore: boostedPayout,
-    payoutAfter: finalPayout
-  });
   // ---  XP SYSTEM ---
   let xpGain = 5;
 
   if (payout > 0) xpGain += 10;
   if (payout >= 500) xpGain += 25;
-
-  console.log("⭐ BASE XP:", xpGain);
 
   // apply deck XP boost
   xpGain = Math.floor(xpGain * effects.xpMult);
@@ -658,12 +601,9 @@ router.post("/spin", async (req, res) => {
   // apply player XP boost
   xpGain = Math.floor(xpGain * user.xp_boost);
 
-  console.log("⭐ FINAL XP GAIN:", xpGain);
 // PART OF LEVEL SYSTEM
   let newXP = user.xp + xpGain;
   let newLevel = user.level; 
- /* let newXP = user.xp + xpGain + 10000; // 🔥 FORCE LEVEL UP (DEBUG ONLY)
-  let newLevel = user.level;*/
 
   // --- LEVEL SYSTEM ---
   let xpNeeded = newLevel * 100;
@@ -672,14 +612,11 @@ router.post("/spin", async (req, res) => {
   while (newXP >= xpNeeded) {
     newXP -= xpNeeded;
     newLevel++;
-    console.log("✅ NEW LEVEL:", newLevel);
     xpNeeded = newLevel * 100;
 
     if (newLevel > (user.last_rewarded_level || 0)) {
       const reward = getLevelReward(newLevel);
       
-      console.log("🎁 REWARD TRIGGERED:", reward);
-
       if (reward > 0) {
         levelRewards.push({
           level: newLevel,
@@ -690,32 +627,6 @@ router.post("/spin", async (req, res) => {
   }
 
   const totalLevelReward = levelRewards.reduce((sum, r) => sum + r.amount, 0);
-  // DEBUG
-  console.log("📈 LEVEL UPDATE:", {
-    newXP,
-    newLevel
-  });
-  console.log("🧠 FINAL PIPELINE:", {
-    reels,
-    basePayout: payout,
-    deckMult: effects.payoutMult,
-    afterDeck: deckAdjustedPayout,
-    payoutBoost: user.payout_boost,
-    xpBoost: user.xp_boost,
-    afterPlayer: boostedPayout,
-    streak: newStreak,
-    final: finalPayout,
-    levelRewards,
-    totalLevelReward,
-    event
-  });
-  console.log("XP CHECK:", {
-    currentXP: user.xp,
-    xpGain,
-    newXP,
-    xpNeeded
-  });
-
 
   // --- SAVE ---
   db.prepare(`

@@ -114,4 +114,14 @@ router.post("/login", async (req, res) => {
   });
 });
 
+// ====================
+// LOGOUT
+// ====================
+router.post("/logout", (req, res) => {
+  req.session.destroy(() => {
+    res.clearCookie("connect.sid");
+    res.json({ status: "logged_out" });
+  });
+});
+
 module.exports = router;

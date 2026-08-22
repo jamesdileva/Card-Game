@@ -20,13 +20,15 @@ Items marked ✅ are done.
 - [ ] Auto-spin doesn't update deck multiplier on stats display
 - [ ] Auto-spin doesn't update payout correctly when using buttons
   (from `frontend/src/notes.md`)
-- [ ] Add `POST /api/auth/logout` route (frontend calls it; backend 404s)
+- [x] Add `POST /api/auth/logout` route (destroys session, clears cookie)
 
 ### Security & hygiene
-- [ ] Gate dev routes (`/dev-add-card`, `/add-balance`, `/reset-account`,
+- [x] Gate dev routes (`/dev-add-card`, `/add-balance`, `/reset-account`,
       `/clear-inventory`, `/dev-reset`) behind `NODE_ENV !== "production"`
-- [ ] Remove debug `console.log` calls from the spin/deck pipeline
-- [ ] Remove commented-out debug hack (`FORCE LEVEL UP`) in spin handler
+      (`devOnly` middleware returns 404 in production)
+- [x] Remove debug `console.log` calls from the spin/deck pipeline
+      (`console.error` kept in catch blocks)
+- [x] Remove commented-out debug hack (`FORCE LEVEL UP`) in spin handler
 - [ ] Add input validation on POST bodies
 
 ### Code health
@@ -55,7 +57,10 @@ Items marked ✅ are done.
       deck array shape) — reject early with 400s
 - [ ] Warn/refuse to boot without `SESSION_SECRET` in production
 - [ ] Expand backend tests: spin pipeline via route modules once logic is
-      deduplicated (deck effects, multipliers, streak updates)
+      deduplicated (deck effects, multipliers, streak updates).
+      **Deferred to that sprint on purpose** — spin/deck logic currently lives
+      inside route handlers and isn't importable; extracting it first makes
+      real pipeline tests possible without an HTTP harness
 
 ### Frontend
 - [ ] Add a test framework (vitest + @testing-library/react) — start with
