@@ -23,10 +23,11 @@ SQLite file: backend/cardgame.db
 | `server.js` | Express setup: CORS allowlist, JSON body parsing, `express-session` backed by the SQLite session store, mounts routes under `/api/auth` and `/api/game` |
 | `db.js` | Opens `cardgame.db` with WAL mode; applies `schema.sql` automatically if the `users` table doesn't exist |
 | `sessionStore.js` | Custom `express-session` store on top of better-sqlite3 |
-| `routes/authRoutes.js` | `/register`, `/login` |
-| `routes/gameRoutes.js` | All gameplay endpoints (see [api.md](api.md)) — spin pipeline, deck validation, crate rolls, upgrades, events live here |
-| `game/cards.js` | Card definitions and effects |
-| `game/slot.js`, `game/crate.js` | Pure slot/crate logic modules (**currently duplicated inline in gameRoutes.js** — see roadmap debt) |
+| `routes/authRoutes.js` | `/register`, `/login`, `/logout` |
+| `routes/gameRoutes.js` | All gameplay endpoints (see [api.md](api.md)) — thin handlers that load state, call game modules, and persist results |
+| `game/cards.js` | Card definitions and crate weights |
+| `game/effects.js` | Deck effects + synergies (pure functions, no DB/RNG) |
+| `game/spin.js` | Spin pipeline math: reels, rerolls, random events, payout chain, XP/levels (pure functions; all RNG via `Math.random` so tests can seed it) |
 | `schema.sql`, `seed.sql`, `scripts/init-db.js` | Schema definition and manual reset/init |
 
 Note: there is no separate controllers/services layer. Route handlers contain

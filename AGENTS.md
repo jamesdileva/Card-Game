@@ -43,6 +43,36 @@ Notes:
 
 ## Changelog / History
 
+### 2026-08-22 — Sprint: extract spin pipeline from routes (roadmap item 3)
+
+- Created `backend/game/effects.js`: `calculateDeckEffects` +
+  `calculateSynergies` moved verbatim out of `gameRoutes.js`.
+- Created `backend/game/spin.js`: pure spin pipeline math —
+  `rollSpin` (reels + reroll), `rollRandomEvent`, `applyEventToEffects`,
+  `computePayout` (bet → deck mult → player boost → streak → event, same
+  order as before), `computeXP`, `applyLevels`. No DB access; all RNG via
+  `Math.random` so tests seed it.
+- `/spin` and `/state` handlers are now thin: load state → call modules →
+  persist → respond. Response shape unchanged.
+- Deleted dead modules `game/slot.js` + `game/crate.js` (old 3-reel logic,
+  never imported; superseded by spin.js). Removed unused `bcrypt` require
+  from `gameRoutes.js` (authRoutes uses bcryptjs).
+- Tests rewritten: dropped outdated slot/crate suites; added
+  `test/pipeline.test.js`. **24 tests, all passing** — effects, synergies,
+  base payouts, reroll trigger, event rolls, full payout chain with exact
+  numbers, XP tiers, level-up rewards incl. multi-level jumps and
+  already-rewarded levels.
+- Behavior parity notes for future work:
+  - Win/streak decided BEFORE streak bonus applies; DOUBLE_PAYOUT event
+    applies after everything else.
+  - XP gain tiers off BASE payout (pre bet-scaling): 5 base, +10 win,
+    +25 if base ≥ 500.
+  - Level rewards only for levels above `last_rewarded_level`; route saves
+    `last_rewarded_level = newLevel` each spin.
+  - Known quirk preserved: `effects.luck` exists but nothing consumes it yet;
+    wild-pair `bonusPayout` (+300) is granted by synergy but not paid out in
+    computePayout — candidate bug fix for next sprint.
+
 ### 2026-08-22 — Security fixes + logout endpoint (roadmap items 1–2)
 
 - Added `devOnly` middleware in `backend/routes/gameRoutes.js`: dev/debug

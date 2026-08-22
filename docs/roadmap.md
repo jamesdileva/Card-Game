@@ -36,9 +36,11 @@ Items marked ✅ are done.
       unused state vars — toast/floatingWin/winFaded/spinningReels/upgradeXP/
       upgradePayout/handleSpinResult, empty catch block, `spinLock` reassign
       flagged by react-hooks/immutability) — `npm run lint` currently fails
-- [ ] Deduplicate logic: `backend/game/slot.js` and `backend/game/crate.js`
-      exist but `gameRoutes.js` re-implements their logic inline — make routes
-      call the modules
+- [x] Deduplicate logic: spin pipeline extracted into `backend/game/effects.js`
+      (deck effects + synergies) and `backend/game/spin.js` (reels, events,
+      payout chain, XP/levels); routes are thin handlers now. Dead modules
+      `game/slot.js`/`game/crate.js` deleted. Pipeline unit-tested in
+      `backend/test/pipeline.test.js`
 - [ ] Remove legacy duplicate routes (`/buy-upgrade` vs `/upgrade/*`)
 - [ ] Drop unused deps: `bcrypt` (keep bcryptjs), frontend `cors`;
       rename `erroHandler.js` typo (done — file removed in legacy cleanup)
@@ -56,11 +58,11 @@ Items marked ✅ are done.
 - [ ] Input validation helper for POST bodies (bet > 0, crate type enum,
       deck array shape) — reject early with 400s
 - [ ] Warn/refuse to boot without `SESSION_SECRET` in production
-- [ ] Expand backend tests: spin pipeline via route modules once logic is
-      deduplicated (deck effects, multipliers, streak updates).
-      **Deferred to that sprint on purpose** — spin/deck logic currently lives
-      inside route handlers and isn't importable; extracting it first makes
-      real pipeline tests possible without an HTTP harness
+- [x] Expand backend tests: spin pipeline unit-tested in
+      `backend/test/pipeline.test.js` (24 tests total) — possible now that
+      the logic is extracted into importable modules
+- [ ] bcrypt: `gameRoutes.js` no longer uses it (only authRoutes does, via
+      bcryptjs) — drop the dep from package.json
 
 ### Frontend
 - [ ] Add a test framework (vitest + @testing-library/react) — start with

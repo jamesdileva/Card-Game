@@ -1,7 +1,16 @@
 const express = require("express");
 const router = express.Router();
-const bcrypt = require("bcrypt");
 const db = require("../db");
+const { calculateDeckEffects, calculateSynergies } = require("../game/effects");
+const { cards } = require("../game/cards");
+const {
+  rollSpin,
+  rollRandomEvent,
+  applyEventToEffects,
+  computePayout,
+  computeXP,
+  applyLevels
+} = require("../game/spin");
 
 // --- HELPER ---
 async function requireLogin(req, res) {
@@ -23,42 +32,12 @@ async function requireLogin(req, res) {
   return true;
 }
 
-// XP progression system
-function xpToNext(level) {
-  return level * 100;
-}
-
 // Dev/debug routes must never run against production.
 function devOnly(req, res, next) {
   if (process.env.NODE_ENV === "production") {
     return res.status(404).json({ error: "Not found" });
   }
   next();
-}
-
-function applyXP(player, xpGain) {
-  player.xp += xpGain;
-
-  while (player.xp >= xpToNext(player.level)) {
-    player.xp -= xpToNext(player.level);
-    player.level++;
-  }
-}
-// RANDOM EVENTS
-function rollRandomEvent() {
-  if (Math.random() > 0.15) return null; // 15% chance
-
-  const roll = Math.random();
-
-  if (roll < 0.33) {
-    return { type: "DOUBLE_PAYOUT", mult: 2, label: "💰 DOUBLE PAYOUT" };
-  } 
-  else if (roll < 0.66) {
-    return { type: "DOUBLE_XP", mult: 2, label: "⚡ DOUBLE XP" };
-  } 
-  else {
-    return { type: "LUCK_BOOST", luck: 0.5, label: "🍀 LUCK SURGE" };
-  }
 }
 
 
@@ -320,161 +299,11 @@ router.post("/set-deck", async (req, res) => {
   res.json({ status: "ok" });
 });
 
-function getLevelReward(level) {
-  return 200 + (level * 50);
-}
-
-function calculateDeckEffects(deck) {
-  const effects = {
-    payoutMult: 1,
-    xpMult: 1,
-    rerollChance: 0,
-    luck: 1
-  };
-
-  deck.forEach(cardId => {
-    switch (cardId) {
-      case "lucky_charm":
-        effects.luck += 0.1;
-        break;
-
-      case "reroll":
-        effects.rerollChance += 0.25;
-        break;
-
-      case "double_down":
-        effects.payoutMult += 0.5;
-        break;
-
-      case "jackpot_boost":
-        effects.payoutMult += 1.0;
-        break;
-
-      case "wild_symbol":
-        effects.luck += 0.3;
-        break;
-
-      case "multiplier_chain":
-        effects.payoutMult += 0.2;
-        break;
-
-      case "mythic_multiplier":
-        effects.payoutMult += 2.0;
-        break;
-    }
-  });
-
-  return effects;
-}
-// CARD SYNERGIES
-function calculateSynergies(deck, effects) {
-  const d = deck || [];
-
-  // ensure array exists
-  effects.synergies = effects.synergies || [];
-
-  const addSynergy = (label) => {
-    effects.synergies.push(label);
-  };
-
-  // -------------------------
-  // 🧠 PAIR SYNERGIES
-  // -------------------------
-
-  if (d.includes("lucky_charm") && d.includes("jackpot_boost")) {
-    effects.payoutMult *= 1.5;
-    effects.luck += 0.1;
-    addSynergy("🍀 Lucky Jackpot");
-  }
-
-  if (d.includes("reroll") && d.includes("multiplier_chain")) {
-    effects.rerollChance += 0.2;
-    effects.payoutMult *= 1.3;
-    addSynergy("🔁 Chain Reroll");
-  }
-
-  if (d.includes("double_down") && d.includes("mythic_multiplier")) {
-    effects.payoutMult *= 2;
-    addSynergy("💥 Mythic Double");
-  }
-
-  // -------------------------
-  // 🔢 COUNT SYNERGIES
-  // -------------------------
-
-  const count = {};
-  d.forEach(card => {
-    if (!card) return;
-    count[card] = (count[card] || 0) + 1;
-  });
-
-  // 🔥 TRIPLE MYTHIC (your big one)
-  if (count["mythic_multiplier"] >= 3) {
-    effects.payoutMult += 7;
-    effects.luck += 0.2;
-    addSynergy(" Triple Mythic");
-  }
-
-  // 🍀 Lucky Charm Pair
-  if (count["lucky_charm"] >= 2) {
-    effects.rerollChance += 0.3;
-    addSynergy("🍀 Lucky Pair");
-  }
-
-  // 🔁 Reroll Stack
-  if (count["reroll"] >= 2) {
-    effects.rerollChance += 0.5;
-    addSynergy("🔁 Reroll Engine");
-  }
-
-  // -------------------------
-  // 🧪 MIXED BUILDS
-  // -------------------------
-
-  if (count["lucky_charm"] && count["reroll"]) {
-    effects.rerollChance += 0.25;
-    effects.luck += 0.2;
-    addSynergy("✨ Luck Engine");
-  }
-
-  if (count["multiplier_chain"] >= 2) {
-    effects.payoutMult += 1.0;
-    effects.xpMult += 0.5;
-    addSynergy("⛓️ Chain Scaling");
-  }
-
-  if (count["wild_symbol"] >= 2) {
-    effects.bonusPayout = (effects.bonusPayout || 0) + 300;
-    addSynergy("🃏 Wild Surge");
-  }
-
-  if (count["jackpot_boost"] >= 2) {
-    effects.payoutMult += 2;
-    addSynergy("👑 Jackpot Overload");
-  }
-
-  // -------------------------
-  // 💀 GOD TIER (RARE BUILD)
-  // -------------------------
-
-  if (
-    count["mythic_multiplier"] &&
-    count["jackpot_boost"] &&
-    count["multiplier_chain"]
-  ) {
-    effects.payoutMult *= 2;
-    effects.luck += 0.5;
-    addSynergy("💀 GOD BUILD");
-  }
-
-  return effects;
-}
-
 // SPIN
 router.post("/spin", async (req, res) => {
   if (!(await requireLogin(req, res))) return;
 
-  const { bet = 100, multiplier = 1 } = req.body;
+  const { bet = 100 } = req.body;
   const deckResult = db
     .prepare("SELECT slot, card_id FROM deck WHERE user_id=? ORDER BY slot")
     .all(req.session.userId);
@@ -498,139 +327,40 @@ router.post("/spin", async (req, res) => {
     return res.json({ error: "Not enough balance" });
   }
 
-  // --- SYMBOLS ---
-  const symbols = ["cherry","lemon","orange","grape","clover","gem","star","crown"];
-
-  // --- 🎴 DECK EFFECTS ---
+  // --- 🎴 DECK EFFECTS + SYNERGIES ---
   const effects = calculateDeckEffects(deck);
-  // ✅ APPLY SYNERGIES (YOU ARE MISSING THIS)
   calculateSynergies(deck, effects);
 
+  // --- ⚡ RANDOM EVENT (modifies effects before the roll) ---
+  const event = applyEventToEffects(rollRandomEvent(), effects);
 
-  // --- ⚡ RANDOM EVENT ---
-  let event = rollRandomEvent();
+  // --- 🎰 ROLL REELS (+ deck reroll chance) ---
+  const { reels, payout: basePayout } = rollSpin(effects);
 
-  if (event) {
-    if (event.type === "DOUBLE_XP") {
-      effects.xpMult *= event.mult;
-    }
+  // --- 💰 PAYOUT CHAIN (bet → deck → boost → streak → event) ---
+  const { finalPayout, newStreak } = computePayout({
+    bet,
+    basePayout,
+    effects,
+    playerBoost: user.payout_boost,
+    winStreak: user.win_streak,
+    event
+  });
 
-    if (event.type === "LUCK_BOOST") {
-      effects.luck += event.luck;
-    }
-  }
+  const newBalance = user.balance - bet + finalPayout;
 
-  // --- DEBUG ---
-  // --- 🎰 SPIN REELS ---
-  let reels = Array.from({ length: 5 }, () =>
-    symbols[Math.floor(Math.random() * symbols.length)]
-  );
-
-  // --- 💰 BASE PAYOUT ---
-  let payout = 0;
-  let unique = new Set(reels).size;
-
-  if (unique === 1) payout = 1000;
-  else if (unique === 2) payout = 500;
-  else if (unique === 3) payout = 200;
-
-  // --- 🔁 REROLL BAD SPINS ---
-  if (payout === 0 && Math.random() < effects.rerollChance) {
-    reels = Array.from({ length: 5 }, () =>
-      symbols[Math.floor(Math.random() * symbols.length)]
-    );
-
-    unique = new Set(reels).size;
-
-    if (unique === 1) payout = 1000;
-    else if (unique === 2) payout = 500;
-    else if (unique === 3) payout = 200;
-  }
-    // ========================
-    // 💰 CLEAN PAYOUT PIPELINE
-    // ========================
-
-    // --- BASE ---
-    let basePayout = payout;
-
-    // --- BET MULTIPLIER ---
-    const baseBet = 100;
-    const betMultiplier = bet / baseBet;
-    const betAdjustedPayout = Math.floor(basePayout * betMultiplier);
-
-    // --- DECK MULTIPLIER ---
-    const deckAdjustedPayout = Math.floor(
-      betAdjustedPayout * effects.payoutMult
-    );
-
-    // --- PLAYER BOOST ---
-    const boostedPayout = Math.floor(
-      deckAdjustedPayout * user.payout_boost
-    );
-
-    // --- STREAK SYSTEM ---
-    let currentStreak = Number(user.win_streak) || 0;
-
-    // determine win BEFORE streak bonus
-    let newStreak = boostedPayout > 0 ? currentStreak + 1 : 0;
-
-    let streakBonus = 1 + (newStreak * 0.05);
-
-   // --- FINAL PAYOUT ---
-    let finalPayout = Math.floor(
-      boostedPayout * streakBonus
-    );
-
-    // ⚡ APPLY EVENT TO FINAL
-    if (event?.type === "DOUBLE_PAYOUT") {
-      finalPayout = Math.floor(finalPayout * event.mult);
-    }
-
-    // --- FINAL BALANCE ---
-    const newBalance = user.balance - bet + finalPayout;
-
-  // ---  XP SYSTEM ---
-  let xpGain = 5;
-
-  if (payout > 0) xpGain += 10;
-  if (payout >= 500) xpGain += 25;
-
-  // apply deck XP boost
-  xpGain = Math.floor(xpGain * effects.xpMult);
-
-  // apply player XP boost
-  xpGain = Math.floor(xpGain * user.xp_boost);
-
-// PART OF LEVEL SYSTEM
-  let newXP = user.xp + xpGain;
-  let newLevel = user.level; 
-
-  // --- LEVEL SYSTEM ---
-  let xpNeeded = newLevel * 100;
-  let levelRewards = [];
-
-  while (newXP >= xpNeeded) {
-    newXP -= xpNeeded;
-    newLevel++;
-    xpNeeded = newLevel * 100;
-
-    if (newLevel > (user.last_rewarded_level || 0)) {
-      const reward = getLevelReward(newLevel);
-      
-      if (reward > 0) {
-        levelRewards.push({
-          level: newLevel,
-          amount: reward
-        });
-      }
-    }
-  }
-
-  const totalLevelReward = levelRewards.reduce((sum, r) => sum + r.amount, 0);
+  // --- ⭐ XP + LEVELS ---
+  const xpGain = computeXP(basePayout, effects.xpMult, user.xp_boost);
+  const { newXP, newLevel, levelRewards, totalLevelReward } = applyLevels({
+    xp: user.xp,
+    level: user.level,
+    xpGain,
+    lastRewardedLevel: user.last_rewarded_level
+  });
 
   // --- SAVE ---
   db.prepare(`
-    UPDATE users 
+    UPDATE users
     SET 
       balance = ?,
       xp = ?,
@@ -639,19 +369,19 @@ router.post("/spin", async (req, res) => {
       last_rewarded_level = ?
     WHERE id = ?
   `).run(
-      newBalance + totalLevelReward, // ✅ APPLY REWARD HERE
+      newBalance + totalLevelReward,
       newXP,
       newLevel,
       newStreak,
-      newLevel, // ✅ SAVE LAST REWARDED LEVEL
+      newLevel,
       req.session.userId
   );
 
   // --- RESPONSE ---
-    res.json({
+  res.json({
     reels,
     payout: finalPayout,
-    balance: newBalance + totalLevelReward, // ✅ FIXED
+    balance: newBalance + totalLevelReward,
     xp: newXP,
     level: newLevel,
     payoutBoost: user.payout_boost,
@@ -660,7 +390,7 @@ router.post("/spin", async (req, res) => {
     event,
     streak: newStreak,
     levelRewards,
-    totalLevelReward // ✅ NEW
+    totalLevelReward
   });
 });
   
@@ -797,8 +527,6 @@ router.post("/open-crate", async (req, res) => {
     };
 
     const rewards = [];
-
-    const { cards } = require("../game/cards"); // check this path!
 
     for (let i = 0; i < 2; i++) {
       const rarity = rarityPool[type][Math.floor(Math.random() * rarityPool[type].length)];
