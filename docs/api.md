@@ -30,6 +30,7 @@ authenticated session (register/login first). Base URL: `/api`.
 |--------|-------------------|------|
 | POST   | `/spin`           | `{ bet }` — validated: positive integer ≤ 1,000,000 (400 otherwise). Runs the full spin pipeline: roll reels, apply deck card effects + synergies + random events to an internal copy, apply payout/xp boosts, update streaks, persist |
 | POST   | `/coinflip`       | `{ bet, choice }` — `choice` must be `"heads"` or `"tails"`; same bet validation. 50/50 even money; deck streak bonus and flat synergy bonuses apply, payout multipliers deliberately do not |
+| POST   | `/highlow`        | `{ action }`: `"start"` rolls a 1–100 base number into your session (free); `"guess"` needs `{ direction: "higher"\|"lower", bet }` against that number. Strictly over/under wins, ties lose; payout is fair odds × 0.95 scaled by winning outcomes (1 outcome → 95x). The roll becomes the next round's base |
 | POST   | `/set-deck`       | `{ newDeck: [cardId|null, …] }` — **server-side validation**: shape (≤3 slots) and ownership/copy-count checks against inventory (400 on violation). No longer trusts the client |
 | POST   | `/open-crate`     | `{ type }` — `type` must be `basic`, `premium`, or `elite` (400 otherwise). Charges cost, rolls reward, adds card(s) to inventory |
 | POST   | `/upgrade/payout` | Purchases payout boost upgrade |

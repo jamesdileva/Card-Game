@@ -43,6 +43,28 @@ Notes:
 
 ## Changelog / History
 
+### 2026-08-22 — Sprint: 0–100 High/Low (third game)
+
+- `backend/game/hilo.js` pure module: stateful rounds — server rolls a
+  base number (1–100) into the session, player bets strictly higher/lower,
+  **ties lose** (house edge #1); payout = fair odds × 0.95, floored to 2
+  decimals (house edge #2): outcomes-based, from x0.96 up to **x95** on a
+  single-outcome pick. The roll chains into the next round's base.
+  Deck-effect policy identical to coinflip: streak bonus + flat synergy
+  bonuses apply; payoutMult/playerBoost excluded.
+- `POST /api/game/highlow {action:"start"}` (free roll) /
+  `{action:"guess", direction, bet}` — bet sanitized, impossible sides
+  rejected with 400, guessing without a started round → 400.
+- Frontend `HiLo.jsx`: big number tile (green/red border on result),
+  Higher/Lower buttons showing live payout multiplier and disabling on
+  impossible sides, free "New number" reroll, shared multiplier row.
+  Third entry in the game switcher (`🔢 Hi-Lo`).
+- Tests: 43 backend tests passing (hilo suite added). Live E2E smoke:
+  start→guess→chained guess all correct incl. odds math and balance flow;
+  bogus action/bad bet → 400s.
+- Gotcha recorded: "lower than 99" has 98 winning outcomes (~0.96x), NOT
+  one — single-outcome picks are higher-than-99 / lower-than-2.
+
 ### 2026-08-22 — Sprint: input validation + Coin Flip (Phase 2 starts)
 
 - **Input validation** (`backend/game/validate.js`, unit-tested):

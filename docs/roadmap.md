@@ -115,7 +115,9 @@ Items marked ✅ are done.
 - [x] Coin Flip (50/50 even money; streak bonus + flat synergy bonuses apply;
       deck payout multipliers deliberately excluded for balance — see
       `backend/game/coinflip.js`; HUD game switcher swaps Slots/Coin Flip)
-- [ ] 0–100 High/Low
+- [x] 0–100 High/Low (stateful rounds via session base number; ties lose;
+      payout = fair odds × 0.95 scaled by outcomes, up to 95x; chained runs;
+      same deck-effect policy as coinflip)
 - [ ] Remaining crate types (corrupted, timed) + crate modifiers from deck
 - [ ] Crate-in-crate mechanic
 - [ ] Slot spin bonus drops (coins / slot crates / jackpot crates)

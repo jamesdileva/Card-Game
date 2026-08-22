@@ -13,6 +13,13 @@ const {
 } = require("../game/spin");
 const { playCoinflip, computeCoinflipXP } = require("../game/coinflip");
 const {
+  rollHiloNumber,
+  playHilo,
+  payoutMultiplier,
+  winChancePct,
+  computeHiloXP
+} = require("../game/hilo");
+const {
   sanitizeBet,
   isValidCrateType,
   sanitizeDeckShape,
@@ -512,6 +519,127 @@ router.post("/coinflip", async (req, res) => {
     totalLevelReward
   });
 });
+
+// HIGH / LOW (0-100)
+router.post("/highlow", async (req, res) => {
+  if (!(await requireLogin(req, res))) return;
+
+  const action = req.body?.action;
+
+  // --- START: roll a base number, no bet ---
+  if (action === "start") {
+    const number = rollHiloNumber();
+    req.session.hiloNumber = number;
+    return res.json({ number });
+  }
+
+  // --- GUESS: bet higher or lower ---
+  if (action === "guess") {
+    const bet = sanitizeBet(req.body?.bet);
+    if (bet === null) {
+      return res.status(400).json({ error: "Invalid bet" });
+    }
+
+    if (req.session.hiloNumber === undefined || req.session.hiloNumber === null) {
+      return res.status(400).json({ error: "Start a round first" });
+    }
+
+    const direction = req.body?.direction;
+    const base = req.session.hiloNumber;
+
+    if (payoutMultiplier(base, direction) === null) {
+      return res.status(400).json({
+        error: "No winning outcomes for that side — take the other one"
+      });
+    }
+
+    const user = db.prepare(`
+      SELECT balance, xp, level, xp_boost, win_streak, last_rewarded_level
+      FROM users
+      WHERE id = ?
+    `).get(req.session.userId);
+
+    if (!user) {
+      return res.status(401).json({ error: "User not found" });
+    }
+
+    if (user.balance < bet) {
+      return res.json({ error: "Not enough balance" });
+    }
+
+    const deckResult = db
+      .prepare("SELECT slot, card_id FROM deck WHERE user_id=? ORDER BY slot")
+      .all(req.session.userId);
+
+    const deck = [null, null, null];
+    deckResult.forEach(row => {
+      deck[row.slot] = row.card_id;
+    });
+
+    const effects = calculateDeckEffects(deck);
+    calculateSynergies(deck, effects);
+
+    const outcome = playHilo({
+      number: base,
+      direction,
+      bet,
+      effects,
+      winStreak: user.win_streak
+    });
+
+    if (!outcome.valid) {
+      return res.status(400).json({ error: "Invalid guess" });
+    }
+
+    const { roll, win, mult, payout, newStreak } = outcome;
+    const newBalance = user.balance - bet + payout;
+
+    // The roll becomes the next round's base.
+    req.session.hiloNumber = roll;
+
+    const xpGain = computeHiloXP(win, effects.xpMult || 1, user.xp_boost);
+    const { newXP, newLevel, levelRewards, totalLevelReward } = applyLevels({
+      xp: user.xp,
+      level: user.level,
+      xpGain,
+      lastRewardedLevel: user.last_rewarded_level || 0
+    });
+
+    db.prepare(`
+      UPDATE users
+      SET
+        balance = ?,
+        xp = ?,
+        level = ?,
+        win_streak = ?
+      WHERE id = ?
+    `).run(
+        newBalance + totalLevelReward,
+        newXP,
+        newLevel,
+        newStreak,
+        req.session.userId
+    );
+
+    return res.json({
+      number: roll,
+      previous: base,
+      direction,
+      win,
+      mult,
+      payout,
+      balance: newBalance + totalLevelReward,
+      xp: newXP,
+      level: newLevel,
+      streak: newStreak,
+      levelRewards,
+      totalLevelReward
+    });
+  }
+
+  return res.status(400).json({ error: "Unknown action" });
+});
+
   
 // --- UPGRADE: PAYOUT BOOST ---
 router.post("/upgrade/payout", async (req, res) => {

@@ -6,6 +6,7 @@ import DeckPanel from "./components/DeckPanel";
 import InventoryPanel from "./components/InventoryPanel";
 import StorePanel from "./components/StorePanel";
 import CoinFlip from "./components/CoinFlip";
+import HiLo from "./components/HiLo";
 
 export default function SlotMachine() {
   const [balance, setBalance] = useState(0);
@@ -16,6 +17,7 @@ export default function SlotMachine() {
   const [activeGame, setActiveGame] = useState("slots");
   const [flipping, setFlipping] = useState(false);
   const [coinResult, setCoinResult] = useState(null);
+  const [hiloBusy, setHiloBusy] = useState(false);
   const [event, setEvent] = useState(null);
   const [deck, setDeck] = useState([]);
   const [effects, setEffects] = useState({});
@@ -40,6 +42,7 @@ const [sessionExpired, setSessionExpired] = useState(false);
 const audioCtxRef = useRef(null);
 const spinLockRef = useRef(false);
 const coinLockRef = useRef(false);
+const hiloBusyRef = useRef(false);
 const autoSpinRef = useRef(autoSpin);
 const spinFnRef = useRef(null);
 const API = import.meta.env.VITE_API_URL + "api";
@@ -461,6 +464,85 @@ useEffect(() => {
           setActiveGame(game);
         }
 
+  // HIGH / LOW
+        async function hiloStart() {
+          try {
+            const res = await authedFetch(`${API}/game/highlow`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "start" })
+            });
+            if (!res) return null;
+            const data = await res.json();
+            if (data.error) {
+              setToast(data.error);
+              return null;
+            }
+            return data;
+          } catch (err) {
+            console.error(err);
+            return null;
+          }
+        }
+
+        async function hiloGuess(direction) {
+          if (hiloBusyRef.current) return null;
+          hiloBusyRef.current = true;
+          setHiloBusy(true);
+
+          try {
+            const res = await authedFetch(`${API}/game/highlow`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "guess",
+                direction,
+                bet: 100 * multiplier
+              })
+            });
+
+            if (!res) {
+              setHiloBusy(false);
+              hiloBusyRef.current = false;
+              return null;
+            }
+
+            const data = await res.json();
+
+            if (data.error) {
+              setToast(data.error);
+              setHiloBusy(false);
+              hiloBusyRef.current = false;
+              return null;
+            }
+
+            setBalance(data.balance);
+            setXp(data.xp || xp);
+            setLevel(data.level || level);
+            setStreak(data.streak || 0);
+
+            if (data.totalLevelReward > 0) {
+              setLevelUp({
+                rewards: data.levelRewards?.length
+                  ? data.levelRewards
+                  : [{
+                      level: data.level || level,
+                      amount: data.totalLevelReward
+                    }],
+                total: data.totalLevelReward
+              });
+            }
+
+            return data;
+          } catch (err) {
+            console.error(err);
+            return null;
+          } finally {
+            setHiloBusy(false);
+            hiloBusyRef.current = false;
+          }
+        }
+
   // AUTO SPIN — chained: next spin fires when the previous one unlocks.
         useEffect(() => {
           autoSpinRef.current = autoSpin;
@@ -570,7 +652,11 @@ useEffect(() => {
 
       {/* 🎮 GAME SWITCHER */}
       <div className="flex gap-2 mb-3">
-        {[{ id: "slots", label: "🎰 Slots" }, { id: "coinflip", label: "🪙 Coin Flip" }].map((g) => (
+        {[
+          { id: "slots", label: "🎰 Slots" },
+          { id: "coinflip", label: "🪙 Coin Flip" },
+          { id: "hilo", label: "🔢 Hi-Lo" }
+        ].map((g) => (
           <button
             key={g.id}
             onClick={() => switchGame(g.id)}
@@ -826,6 +912,16 @@ useEffect(() => {
           onFlip={playCoinflip}
           flipping={flipping}
           result={coinResult}
+        />
+      )}
+
+      {activeGame === "hilo" && (
+        <HiLo
+          multiplier={multiplier}
+          setMultiplier={setMultiplier}
+          onStart={hiloStart}
+          onGuess={hiloGuess}
+          disabled={hiloBusy}
         />
       )}
       </main>
