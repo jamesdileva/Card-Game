@@ -5,6 +5,7 @@ import Card from "./components/Card";
 import DeckPanel from "./components/DeckPanel";
 import InventoryPanel from "./components/InventoryPanel";
 import StorePanel from "./components/StorePanel";
+import CoinFlip from "./components/CoinFlip";
 
 export default function SlotMachine() {
   const [balance, setBalance] = useState(0);
@@ -12,6 +13,9 @@ export default function SlotMachine() {
   const [autoSpin, setAutoSpin] = useState(false);
   const [multiplier, setMultiplier] = useState(1);
   const [activeTab, setActiveTab] = useState("deck");
+  const [activeGame, setActiveGame] = useState("slots");
+  const [flipping, setFlipping] = useState(false);
+  const [coinResult, setCoinResult] = useState(null);
   const [event, setEvent] = useState(null);
   const [deck, setDeck] = useState([]);
   const [effects, setEffects] = useState({});
@@ -35,6 +39,7 @@ const [sessionExpired, setSessionExpired] = useState(false);
   const bet = 100;
 const audioCtxRef = useRef(null);
 const spinLockRef = useRef(false);
+const coinLockRef = useRef(false);
 const autoSpinRef = useRef(autoSpin);
 const spinFnRef = useRef(null);
 const API = import.meta.env.VITE_API_URL + "api";
@@ -390,6 +395,72 @@ useEffect(() => {
           spinFnRef.current = spin;
         });
 
+  // COIN FLIP
+        async function playCoinflip(choice) {
+          if (coinLockRef.current) return;
+          coinLockRef.current = true;
+          setFlipping(true);
+          setCoinResult(null);
+
+          try {
+            const res = await authedFetch(`${API}/game/coinflip`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ bet: 100 * multiplier, choice })
+            });
+
+            if (!res) {
+              coinLockRef.current = false;
+              setFlipping(false);
+              return;
+            }
+
+            const data = await res.json();
+
+            if (data.error) {
+              setToast(data.error);
+              coinLockRef.current = false;
+              setFlipping(false);
+              return;
+            }
+
+            // let the flip animation finish before revealing
+            setTimeout(() => {
+              coinLockRef.current = false;
+              setFlipping(false);
+              setCoinResult(data);
+              setBalance(data.balance);
+              setXp(data.xp || xp);
+              setLevel(data.level || level);
+              setStreak(data.streak || 0);
+
+              if (data.totalLevelReward > 0) {
+                setLevelUp({
+                  rewards: data.levelRewards?.length
+                    ? data.levelRewards
+                    : [{
+                        level: data.level || level,
+                        amount: data.totalLevelReward
+                      }],
+                  total: data.totalLevelReward
+                });
+              }
+            }, 900);
+          } catch (err) {
+            console.error(err);
+            coinLockRef.current = false;
+            setFlipping(false);
+          }
+        }
+
+        function switchGame(game) {
+          if (game !== "slots" && autoSpin) {
+            autoSpinRef.current = false;
+            setAutoSpin(false);
+          }
+          setActiveGame(game);
+        }
+
   // AUTO SPIN — chained: next spin fires when the previous one unlocks.
         useEffect(() => {
           autoSpinRef.current = autoSpin;
@@ -496,6 +567,26 @@ useEffect(() => {
 
       {/* 🎰 GAME COLUMN */}
       <main className="w-full max-w-md mx-auto lg:mx-0 shrink-0">
+
+      {/* 🎮 GAME SWITCHER */}
+      <div className="flex gap-2 mb-3">
+        {[{ id: "slots", label: "🎰 Slots" }, { id: "coinflip", label: "🪙 Coin Flip" }].map((g) => (
+          <button
+            key={g.id}
+            onClick={() => switchGame(g.id)}
+            className={`flex-1 py-2 px-2 text-sm font-semibold rounded-xl transition
+              ${activeGame === g.id
+                ? "bg-zinc-700 text-white shadow-[0_0_10px_rgba(255,255,255,0.08)]"
+                : "bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+              }
+            `}
+          >
+            {g.label}
+          </button>
+        ))}
+      </div>
+
+      {activeGame === "slots" && (
       <div className="bg-zinc-800 border border-zinc-700 p-6 rounded-2xl shadow-2xl w-full">
 
 {/* 🎛️ STATS BAR */}
@@ -726,6 +817,17 @@ useEffect(() => {
     </button>
   ))}
 </div></div>
+      )}
+
+      {activeGame === "coinflip" && (
+        <CoinFlip
+          multiplier={multiplier}
+          setMultiplier={setMultiplier}
+          onFlip={playCoinflip}
+          flipping={flipping}
+          result={coinResult}
+        />
+      )}
       </main>
 
       {/* 🗂️ PANEL COLUMN */}

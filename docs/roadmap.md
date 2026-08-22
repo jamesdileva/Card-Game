@@ -33,7 +33,10 @@ Items marked ✅ are done.
 - [x] Remove debug `console.log` calls from the spin/deck pipeline
       (`console.error` kept in catch blocks)
 - [x] Remove commented-out debug hack (`FORCE LEVEL UP`) in spin handler
-- [ ] Add input validation on POST bodies
+### Security & hygiene
+- [x] Add input validation on POST bodies (`backend/game/validate.js`:
+      bet sanitization, crate type enum, deck shape + server-side
+      ownership/copy-count checks; auth format checks)
 
 ### Code health
 - [x] Fix pre-existing frontend lint errors in `SlotMachine.jsx` —
@@ -109,7 +112,9 @@ Items marked ✅ are done.
 - [ ] All Track 1 debt cleared
 
 ### Phase 2 — More games & crates
-- [ ] Coin Flip
+- [x] Coin Flip (50/50 even money; streak bonus + flat synergy bonuses apply;
+      deck payout multipliers deliberately excluded for balance — see
+      `backend/game/coinflip.js`; HUD game switcher swaps Slots/Coin Flip)
 - [ ] 0–100 High/Low
 - [ ] Remaining crate types (corrupted, timed) + crate modifiers from deck
 - [ ] Crate-in-crate mechanic

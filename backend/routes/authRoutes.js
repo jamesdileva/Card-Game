@@ -9,8 +9,18 @@ const db = require("../db");
 router.post("/register", async (req, res) => {
   const { username, password } = req.body;
 
-  if (!username || !password) {
-    return res.json({ error: "Missing fields" });
+  if (
+    typeof username !== "string" ||
+    typeof password !== "string" ||
+    username.length < 3 ||
+    username.length > 20 ||
+    !/^[a-zA-Z0-9_]+$/.test(username) ||
+    password.length < 4 ||
+    password.length > 100
+  ) {
+    return res.status(400).json({
+      error: "Invalid input (username: 3-20 chars letters/numbers/_; password: 4-100 chars)"
+    });
   }
 
   const hash = await bcrypt.hash(password, 10);
@@ -44,6 +54,17 @@ router.post("/register", async (req, res) => {
 // ====================
 router.post("/login", async (req, res) => {
   const { username, password } = req.body;
+
+  if (
+    typeof username !== "string" ||
+    typeof password !== "string" ||
+    username.length === 0 ||
+    username.length > 20 ||
+    password.length === 0 ||
+    password.length > 100
+  ) {
+    return res.status(400).json({ error: "Invalid input" });
+  }
 
   const user = db
     .prepare("SELECT * FROM users WHERE username=?")

@@ -43,6 +43,32 @@ Notes:
 
 ## Changelog / History
 
+### 2026-08-22 — Sprint: input validation + Coin Flip (Phase 2 starts)
+
+- **Input validation** (`backend/game/validate.js`, unit-tested):
+  - `/spin` + `/coinflip`: bet must be a positive integer ≤ 1,000,000 (400)
+  - `/open-crate`: type enum-checked (400) — no more silent default to basic
+  - `/set-deck`: **server-side ownership validation now enforced** — shape
+    (≤3 slots, string|null) plus per-card copy counts against the inventory
+    table. Was client-trust before; the known exploit is closed
+  - auth: username 3–20 chars `[a-zA-Z0-9_]`, password 4–100 chars
+- **Coin Flip shipped**:
+  - `backend/game/coinflip.js` pure module: 50/50 even money (2x total on
+    win). Design decision: deck payoutMult/playerBoost deliberately NOT
+    applied (50% × x8 mythic deck would print money vs slots RTP); streak
+    bonus and flat `bonusPayout` synergies DO apply. XP: 5 base / +10 win,
+    scaled by xpMult/xpBoost. Level-ups reuse `applyLevels`
+  - `POST /api/game/coinflip {bet, choice}` route wired like /spin
+  - Frontend: `CoinFlip.jsx` (coin spin animation via `coinSpin` keyframes,
+    heads/tails pick, own multiplier row sharing parent state), game
+    switcher above the machine column (`activeGame` state). Switching away
+    from Slots cancels auto-spin. Balance/xp/streak/level-up flow shared
+    with slots
+- Tests: 35 backend tests passing (validate suite + coinflip suite added).
+- E2E smoke verified live: flip pays 210 on first 100-bet win (streak
+  bonus), bad bets/choice/unowned deck → 400s with clear errors.
+- Verified: lint green, build passes, server boots.
+
 ### 2026-08-22 — Sprint: micro-interactions + small debt riders
 
 - **Crate reveal animation:** `openCrate` now has a suspense beat — full-

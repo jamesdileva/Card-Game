@@ -11,6 +11,13 @@ const {
   computeXP,
   applyLevels
 } = require("../game/spin");
+const { playCoinflip, computeCoinflipXP } = require("../game/coinflip");
+const {
+  sanitizeBet,
+  isValidCrateType,
+  sanitizeDeckShape,
+  validateDeckOwnership
+} = require("../game/validate");
 
 // --- HELPER ---
 async function requireLogin(req, res) {
@@ -283,7 +290,24 @@ router.post("/dev-reset", devOnly, async (req, res) => {
 router.post("/set-deck", async (req, res) => {
   if (!(await requireLogin(req, res))) return;
 
-  const { newDeck } = req.body;
+  const shaped = sanitizeDeckShape(req.body?.newDeck);
+  if (!shaped.ok) {
+    return res.status(400).json({ error: shaped.error });
+  }
+
+  // Server-side ownership check (no longer trusts the client).
+  const invRows = db
+    .prepare("SELECT card_id, COUNT(*) AS count FROM inventory WHERE user_id=? GROUP BY card_id")
+    .all(req.session.userId);
+  const inventoryCounts = {};
+  invRows.forEach((r) => { inventoryCounts[r.card_id] = r.count; });
+
+  const owned = validateDeckOwnership(shaped.deck, inventoryCounts);
+  if (!owned.ok) {
+    return res.status(400).json({ error: owned.error });
+  }
+
+  const newDeck = shaped.deck;
 
   for (let i = 0; i < 3; i++) {
     const cardId = newDeck[i] || null; // ✅ FIX
@@ -303,7 +327,11 @@ router.post("/set-deck", async (req, res) => {
 router.post("/spin", async (req, res) => {
   if (!(await requireLogin(req, res))) return;
 
-  const { bet = 100 } = req.body;
+  const bet = sanitizeBet(req.body?.bet ?? 100);
+  if (bet === null) {
+    return res.status(400).json({ error: "Invalid bet" });
+  }
+
   const deckResult = db
     .prepare("SELECT slot, card_id FROM deck WHERE user_id=? ORDER BY slot")
     .all(req.session.userId);
@@ -396,6 +424,94 @@ router.post("/spin", async (req, res) => {
     totalLevelReward
   });
 });
+
+// COIN FLIP
+router.post("/coinflip", async (req, res) => {
+  if (!(await requireLogin(req, res))) return;
+
+  const bet = sanitizeBet(req.body?.bet);
+  if (bet === null) {
+    return res.status(400).json({ error: "Invalid bet" });
+  }
+
+  const choice = req.body?.choice;
+  if (choice !== "heads" && choice !== "tails") {
+    return res.status(400).json({ error: "Pick heads or tails" });
+  }
+
+  const user = db.prepare(`
+    SELECT balance, xp, level, xp_boost, win_streak, last_rewarded_level
+    FROM users
+    WHERE id = ?
+  `).get(req.session.userId);
+
+  if (!user) {
+    return res.status(401).json({ error: "User not found" });
+  }
+
+  if (user.balance < bet) {
+    return res.json({ error: "Not enough balance" });
+  }
+
+  const deckResult = db
+    .prepare("SELECT slot, card_id FROM deck WHERE user_id=? ORDER BY slot")
+    .all(req.session.userId);
+
+  const deck = [null, null, null];
+  deckResult.forEach(row => {
+    deck[row.slot] = row.card_id;
+  });
+
+  const effects = calculateDeckEffects(deck);
+  calculateSynergies(deck, effects);
+
+  const { flip, win, payout, newStreak } = playCoinflip({
+    bet,
+    choice,
+    effects,
+    winStreak: user.win_streak
+  });
+
+  const newBalance = user.balance - bet + payout;
+
+  // --- ⭐ XP + LEVELS ---
+  const xpGain = computeCoinflipXP(win, effects.xpMult || 1, user.xp_boost);
+  const { newXP, newLevel, levelRewards, totalLevelReward } = applyLevels({
+    xp: user.xp,
+    level: user.level,
+    xpGain,
+    lastRewardedLevel: user.last_rewarded_level || 0
+  });
+
+  db.prepare(`
+    UPDATE users
+    SET
+      balance = ?,
+      xp = ?,
+      level = ?,
+      win_streak = ?
+    WHERE id = ?
+  `).run(
+      newBalance + totalLevelReward,
+      newXP,
+      newLevel,
+      newStreak,
+      req.session.userId
+  );
+
+  res.json({
+    choice,
+    flip,
+    win,
+    payout,
+    balance: newBalance + totalLevelReward,
+    xp: newXP,
+    level: newLevel,
+    streak: newStreak,
+    levelRewards,
+    totalLevelReward
+  });
+});
   
 // --- UPGRADE: PAYOUT BOOST ---
 router.post("/upgrade/payout", async (req, res) => {
@@ -476,10 +592,14 @@ router.post("/open-crate", async (req, res) => {
   try {
     if (!(await requireLogin(req, res))) return;
 
-    const { type = "basic" } = req.body;
+    const type = req.body?.type;
+
+    if (!isValidCrateType(type)) {
+      return res.status(400).json({ error: "Invalid crate type" });
+    }
 
     const costMap = { basic: 100, premium: 250, elite: 500 };
-    const cost = costMap[type] || 100;
+    const cost = costMap[type];
 
     const balRes = db
       .prepare("SELECT balance FROM users WHERE id=?")

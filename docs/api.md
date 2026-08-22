@@ -28,14 +28,22 @@ authenticated session (register/login first). Base URL: `/api`.
 
 | Method | Path              | Body |
 |--------|-------------------|------|
-| POST   | `/spin`           | `{ bet }` — runs the full spin pipeline: validate balance, roll reels, apply deck card effects + synergies, apply payout/xp boosts, update streaks, persist |
-| POST   | `/set-deck`       | `{ newDeck: [cardId, cardId, cardId] }` — validates ownership and copy counts before saving |
-| POST   | `/open-crate`     | `{ type }` — charges cost, rolls reward, adds card(s) to inventory |
+| POST   | `/spin`           | `{ bet }` — validated: positive integer ≤ 1,000,000 (400 otherwise). Runs the full spin pipeline: roll reels, apply deck card effects + synergies + random events to an internal copy, apply payout/xp boosts, update streaks, persist |
+| POST   | `/coinflip`       | `{ bet, choice }` — `choice` must be `"heads"` or `"tails"`; same bet validation. 50/50 even money; deck streak bonus and flat synergy bonuses apply, payout multipliers deliberately do not |
+| POST   | `/set-deck`       | `{ newDeck: [cardId|null, …] }` — **server-side validation**: shape (≤3 slots) and ownership/copy-count checks against inventory (400 on violation). No longer trusts the client |
+| POST   | `/open-crate`     | `{ type }` — `type` must be `basic`, `premium`, or `elite` (400 otherwise). Charges cost, rolls reward, adds card(s) to inventory |
 | POST   | `/upgrade/payout` | Purchases payout boost upgrade |
 | POST   | `/upgrade/xp`     | Purchases XP boost upgrade |
 
-Legacy duplicates kept from an older iteration (superseded by `/upgrade/*`):
-`POST /buy-upgrade`, `GET /progression` variants.
+Removed legacy routes: `/buy-upgrade` (superseded by `/upgrade/*`).
+
+### Input validation summary
+
+All gameplay POST bodies are validated (`backend/game/validate.js`, unit-tested):
+bets must be positive integers within cap; crate types are enum-checked;
+decks are shape-checked **and** ownership-checked against the inventory
+table before persisting. Auth endpoints enforce username/password format
+(3–20 chars letters/digits/underscore; password 4–100 chars).
 
 ## Dev / Debug Routes
 
