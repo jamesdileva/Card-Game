@@ -7,7 +7,10 @@ function calculateDeckEffects(deck) {
     payoutMult: 1,
     xpMult: 1,
     rerollChance: 0,
-    luck: 1
+    luck: 1,
+    streakBonusRate: 0.05, // per-win streak bonus growth (Hot Streak raises it)
+    jackpotSurge: 0,       // total chance a win pays ×5
+    safetyNet: false       // refund part of the bet on losing spins
   };
 
   deck.forEach(cardId => {
@@ -38,6 +41,18 @@ function calculateDeckEffects(deck) {
 
       case "mythic_multiplier":
         effects.payoutMult += 2.0;
+        break;
+
+      case "safety_net":
+        effects.safetyNet = true;
+        break;
+
+      case "hot_streak":
+        effects.streakBonusRate += 0.02;
+        break;
+
+      case "jackpot_surge":
+        effects.jackpotSurge += 0.03;
         break;
     }
   });

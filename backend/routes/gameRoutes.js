@@ -403,7 +403,7 @@ router.post("/spin", async (req, res) => {
   const newBalance = user.balance - bet + finalPayout;
 
   // --- 🎁 SPIN BONUS DROP ---
-  const drop = rollSpinDrop({ luckyCharm: deck.includes("lucky_charm") });
+  const drop = rollSpinDrop({ luck: effects.luck });
   let dropInfo = null;
 
   if (drop?.type === "coins") {

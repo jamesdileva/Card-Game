@@ -128,7 +128,12 @@ Items marked ✅ are done.
       crate pull; Lucky Charm bumps to 15%)
 
 ### Phase 3 — Depth
-- [ ] Full 10-starter-card set balanced to design targets (see game-design.md)
+- [x] Card catalog expanded to 10 cards incl. luck design pass
+      (`effects.luck` now drives reel-harmony procs + improved spin-drop
+      odds; new cards: Safety Net, Hot Streak, Jackpot Surge). Remaining
+      original concepts (Sticky Symbols, Bonus Reel, Glitch Engine, Reel
+      Bias, Loss Streak Saver) need reel-level rewrite mechanics — future
+      work if wanted; balance tuning is ongoing via play
 - [ ] Build archetypes emerge naturally (High Roller / Safe Grinder / Chaos / Combo)
 - [ ] Corruption system on cards
 - [ ] Card evolution: merge duplicates, mutations

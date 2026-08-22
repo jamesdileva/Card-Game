@@ -5,7 +5,10 @@ const CARD_NAMES = {
   jackpot_boost: "Jackpot Boost",
   wild_symbol: "Wild Symbol",
   multiplier_chain: "Multiplier Chain",
-  mythic_multiplier: "Mythic Multiplier"
+  mythic_multiplier: "Mythic Multiplier",
+  safety_net: "Safety Net",
+  hot_streak: "Hot Streak",
+  jackpot_surge: "Jackpot Surge"
 };
 
 export function cardName(id) {

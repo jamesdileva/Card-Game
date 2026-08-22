@@ -43,6 +43,31 @@ Notes:
 
 ## Changelog / History
 
+### 2026-08-22 — Sprint: Phase 3 — luck design pass + card catalog to 10
+
+- **`effects.luck` is finally consumed** (was display-only since forever):
+  - *Reel harmony*: after the initial roll, chance
+    `min((luck−1)×0.2, 12%)` converts one reel to match another, nudging
+    spins toward paid match tiers. Modest by design — one proc rarely
+    changes the payout class alone.
+  - *Drop odds*: spin-drop window widens with luck
+    (`0.9 − min((luck−1)×0.15, 0.08)`); replaces the old luckyCharm flag,
+    so wild_symbol decks and luck synergies now help drops too. Capped.
+- **Three new cards** (catalog 7 → 10):
+  - `safety_net` (rare): refund 20% of bet on losing spins; never counts
+    as a win for streaks
+  - `hot_streak` (epic): +2% per card on the per-win streak bonus rate
+    (5% → 7% with one; stacks)
+  - `jackpot_surge` (legendary): +3% per card chance a winning spin pays
+    ×5 (capped at 6%); procs after the synergy bonus, before DOUBLE_PAYOUT
+- Deliberately NOT added: Sticky Symbols / Bonus Reel / Glitch Engine /
+  Reel Bias / Loss Streak Saver concepts need reel-level mechanics the
+  current unique-count engine doesn't have — documented as future work.
+- Tests: 69 backend tests passing (new effect + harmony + drop-cap suites;
+  neutral-effects assertion updated for new default fields).
+- Live smoke: deck of all three new cards → state shows streakRate 0.07 /
+  surge 0.03 / safetyNet true; losing spin paid exactly $20 refund.
+
 ### 2026-08-22 — Sprint: corrupted/timed crates, crate-in-crate, spin drops (Phase 2 crates complete)
 
 - **Crate logic extracted** to `backend/game/crates.js` (`CRATE_TYPES` map +

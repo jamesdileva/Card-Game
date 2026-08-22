@@ -172,11 +172,24 @@ describe("game/spin — bonus drops", () => {
     });
   });
 
-  test("lucky charm widens the drop window", () => {
-    withRandom(0.87, () => {
-      // 0.87 >= 0.85 → drop WITH charm; < 0.90 → nothing without
-      assert.notStrictEqual(rollSpinDrop({ luckyCharm: true }), null);
-      assert.strictEqual(rollSpinDrop({ luckyCharm: false }), null);
+  test("deck luck widens the drop window", () => {
+    withRandom(0.89, () => {
+      // luck 1.1 → threshold 0.885 → 0.89 DROPS;
+      // plain luck 1 keeps the 0.90 window → nothing
+      assert.notStrictEqual(rollSpinDrop({ luck: 1.1 }), null);
+      assert.strictEqual(rollSpinDrop({ luck: 1 }), null);
+    });
+  });
+
+  test("luck bonus is capped at +8 points", () => {
+    withRandom(0.81, () => {
+      // uncapped luck-2 window would be 0.75 (this would drop);
+      // capped keeps the 0.82 threshold → still nothing
+      assert.strictEqual(rollSpinDrop({ luck: 2 }), null);
+    });
+    withRandom(0.83, () => {
+      // past the capped threshold → drops
+      assert.notStrictEqual(rollSpinDrop({ luck: 2 }), null);
     });
   });
 

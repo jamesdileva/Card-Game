@@ -27,9 +27,28 @@ function rollReels(count = 5) {
   );
 }
 
-// Roll reels once; reroll a total loss based on deck reroll chance.
+// Luck bias ("reel harmony"): convert one random reel to match another,
+// nudging the spin toward fewer unique symbols (the paid tiers). Modest by
+// design — a single proc rarely changes the payout class on its own.
+function harmonizeReels(reels) {
+  const i = Math.floor(Math.random() * reels.length);
+  let j = Math.floor(Math.random() * reels.length);
+  if (j === i) j = (i + 1) % reels.length;
+  const updated = [...reels];
+  updated[i] = updated[j];
+  return updated;
+}
+
+// Roll reels once; luck may harmonize; reroll total losses based on deck
+// reroll chance.
 function rollSpin(effects) {
   let reels = rollReels();
+
+  const luckProc = Math.min((effects.luck - 1) * 0.2, 0.12);
+  if (luckProc > 0 && new Set(reels).size > 1 && Math.random() < luckProc) {
+    reels = harmonizeReels(reels);
+  }
+
   let payout = basePayoutFor(reels);
 
   if (payout === 0 && Math.random() < effects.rerollChance) {
@@ -73,8 +92,8 @@ function applyEventToEffects(event, effects) {
 }
 
 // Payout chain, in order: bet scaling → deck multiplier → player boost →
-// streak bonus → event. Win/streak determined BEFORE the streak bonus is
-// applied (same as the original inline implementation).
+// streak bonus → synergy bonus → jackpot surge → event. Win/streak decided
+// BEFORE the streak bonus is applied (same as the original implementation).
 function computePayout({ bet, basePayout, effects, playerBoost, winStreak, event }) {
   const betMultiplier = bet / BASE_BET;
   const betAdjustedPayout = Math.floor(basePayout * betMultiplier);
@@ -89,7 +108,8 @@ function computePayout({ bet, basePayout, effects, playerBoost, winStreak, event
 
   const currentStreak = Number(winStreak) || 0;
   const newStreak = boostedPayout > 0 ? currentStreak + 1 : 0;
-  const streakBonus = 1 + newStreak * 0.05;
+  const streakRate = effects.streakBonusRate || 0.05;
+  const streakBonus = 1 + newStreak * streakRate;
 
   let finalPayout = Math.floor(boostedPayout * streakBonus);
 
@@ -97,6 +117,21 @@ function computePayout({ bet, basePayout, effects, playerBoost, winStreak, event
   // Streak/win status is still decided by the reels above, not this bonus.
   if (effects.bonusPayout) {
     finalPayout += effects.bonusPayout;
+  }
+
+  // Safety Net: refund part of the bet on losing spins; never counts as a
+  // win for streak purposes.
+  if (basePayout === 0 && effects.safetyNet) {
+    finalPayout += Math.floor(bet * 0.2);
+  }
+
+  // Jackpot Surge: tiny chance a winning spin pays ×5 (capped).
+  if (
+    basePayout > 0 &&
+    effects.jackpotSurge > 0 &&
+    Math.random() < Math.min(effects.jackpotSurge, 0.06)
+  ) {
+    finalPayout *= 5;
   }
 
   if (event?.type === "DOUBLE_PAYOUT") {
@@ -153,10 +188,10 @@ function applyLevels({ xp, level, xpGain, lastRewardedLevel }) {
 }
 
 // Slot spin bonus drops. Base odds per design: 90% nothing / 7% coin drop /
-// 2% card drop / 1% free elite-crate pull. A deck with lucky_charm shifts
-// ~5 percentage points from "nothing" into the drop table.
-function rollSpinDrop({ luckyCharm = false } = {}) {
-  const nothingChance = luckyCharm ? 0.85 : 0.9;
+// 2% card drop / 1% free elite-crate pull. Deck luck shifts up to +8 points
+// from "nothing" into the drop table (lucky_charm/wild_symbol/synergies).
+function rollSpinDrop({ luck = 1 } = {}) {
+  const nothingChance = 0.9 - Math.min((luck - 1) * 0.15, 0.08);
   const roll = Math.random();
 
   if (roll < nothingChance) return null;

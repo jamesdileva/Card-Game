@@ -4,11 +4,14 @@ const cards = [
 
   { id: "double_down", rarity: "rare", weight: 25 },
   { id: "jackpot_boost", rarity: "rare", weight: 25 },
+  { id: "safety_net", rarity: "rare", weight: 25 },
 
   { id: "wild_symbol", rarity: "epic", weight: 10 },
   { id: "multiplier_chain", rarity: "epic", weight: 10 },
+  { id: "hot_streak", rarity: "epic", weight: 10 },
 
-  { id: "mythic_multiplier", rarity: "legendary", weight: 2 }
+  { id: "mythic_multiplier", rarity: "legendary", weight: 2 },
+  { id: "jackpot_surge", rarity: "legendary", weight: 2 }
 ];
 
 function getRandomCard() {

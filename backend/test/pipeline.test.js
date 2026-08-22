@@ -32,7 +32,10 @@ describe("game/effects", () => {
       payoutMult: 1,
       xpMult: 1,
       rerollChance: 0,
-      luck: 1
+      luck: 1,
+      streakBonusRate: 0.05,
+      jackpotSurge: 0,
+      safetyNet: false
     });
   });
 
@@ -77,6 +80,17 @@ describe("game/effects", () => {
     assert.strictEqual(e.bonusPayout, 300);
     assert.ok(e.synergies.includes("🃏 Wild Surge"));
   });
+
+  test("phase-3 cards set their effect fields", () => {
+    const e1 = calculateDeckEffects(["safety_net", null, null]);
+    assert.strictEqual(e1.safetyNet, true);
+
+    const e2 = calculateDeckEffects(["hot_streak", "hot_streak", null]);
+    assert.ok(Math.abs(e2.streakBonusRate - 0.09) < 1e-9); // 0.05 + 2×0.02
+
+    const e3 = calculateDeckEffects(["jackpot_surge", "jackpot_surge", "jackpot_surge"]);
+    assert.strictEqual(e3.jackpotSurge, 0.09);
+  });
 });
 
 describe("game/spin — reels & payouts", () => {
@@ -116,6 +130,25 @@ describe("game/spin — reels & payouts", () => {
     withRandom(() => seq[call++ % seq.length], () => {
       const { payout } = rollSpin({ rerollChance: 0.5 });
       assert.strictEqual(payout, 0);
+    });
+  });
+
+  test("luck harmonizes reels toward matches", () => {
+    // rolls: 5 distinct symbols, then harmonize proc (0.01 < 0.04), then
+    // i = floor(0.99*5) = 4, j = 5%5 = 0 → reel 4 copies reel 0
+    let call = 0;
+    const seq = [0.01, 0.15, 0.3, 0.45, 0.6, 0.01, 0.99];
+    withRandom(() => seq[call++ % seq.length], () => {
+      const { reels } = rollSpin({ luck: 1.2, rerollChance: 0 });
+      assert.strictEqual(reels[4], "cherry"); // cherry copied onto clover
+    });
+  });
+
+  test("no harmony proc without luck; all-matching spins stay intact", () => {
+    withRandom(0.5, () => {
+      const r = rollSpin({ luck: 1, rerollChance: 0 });
+      assert.ok(r.reels.every((s) => s === "clover")); // constant random → all same
+      assert.strictEqual(r.payout, 1000);
     });
   });
 });
@@ -248,6 +281,94 @@ describe("game/spin — payout chain", () => {
     });
     assert.strictEqual(finalPayout, 300);
     assert.strictEqual(newStreak, 0); // reels lost → streak resets
+  });
+
+  test("Safety Net refunds 20% of bet on losses, no streak credit", () => {
+    const { finalPayout, newStreak } = computePayout({
+      bet: 200,
+      basePayout: 0,
+      winStreak: 3,
+      event: null,
+      effects: { payoutMult: 1, safetyNet: true },
+      playerBoost: 1
+    });
+    assert.strictEqual(finalPayout, 40); // 20% of 200
+    assert.strictEqual(newStreak, 0);
+  });
+
+  test("Safety Net does not pay on winning spins", () => {
+    const { finalPayout } = computePayout({
+      bet: 100,
+      basePayout: 1000,
+      winStreak: 0,
+      event: null,
+      effects: { payoutMult: 1, safetyNet: true },
+      playerBoost: 1
+    });
+    // normal win math only — no +20 refund
+    assert.strictEqual(finalPayout, 1050);
+  });
+
+  test("Hot Streak raises the per-win streak rate", () => {
+    const base = {
+      bet: 100,
+      basePayout: 1000,
+      winStreak: 1,
+      event: null,
+      playerBoost: 1
+    };
+    const plain = computePayout({ ...base, effects: { payoutMult: 1 } });
+    // streak 2 × 5% → floor(1000 × 1.10) = 1100
+    assert.strictEqual(plain.finalPayout, 1100);
+
+    const hot = computePayout({
+      ...base,
+      effects: { payoutMult: 1, streakBonusRate: 0.09 }
+    });
+    // streak 2 × 9% → floor(1000 × 1.18) = 1180
+    assert.strictEqual(hot.finalPayout, 1180);
+  });
+
+  test("Jackpot Surge multiplies a winning payout by 5 when it procs", () => {
+    withRandom(0.01, () => {
+      // 0.01 < 0.03 → surge procs: 1050 × 5
+      const { finalPayout } = computePayout({
+        bet: 100,
+        basePayout: 1000,
+        winStreak: 0,
+        event: null,
+        effects: { payoutMult: 1, jackpotSurge: 0.03 },
+        playerBoost: 1
+      });
+      assert.strictEqual(finalPayout, 5250);
+    });
+  });
+
+  test("Jackpot Surge respects the 6% cap", () => {
+    withRandom(0.055, () => {
+      // deck has 3 surges = 9%, capped to 6% → 0.055 < 0.06 still procs
+      const { finalPayout } = computePayout({
+        bet: 100,
+        basePayout: 1000,
+        winStreak: 0,
+        event: null,
+        effects: { payoutMult: 1, jackpotSurge: 0.09 },
+        playerBoost: 1
+      });
+      assert.strictEqual(finalPayout, 5250);
+    });
+    withRandom(0.065, () => {
+      // capped at 6% → 0.065 misses
+      const { finalPayout } = computePayout({
+        bet: 100,
+        basePayout: 1000,
+        winStreak: 0,
+        event: null,
+        effects: { payoutMult: 1, jackpotSurge: 0.09 },
+        playerBoost: 1
+      });
+      assert.strictEqual(finalPayout, 1050);
+    });
   });
 });
 
