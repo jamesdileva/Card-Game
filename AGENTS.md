@@ -43,6 +43,22 @@ Notes:
 
 ## Changelog / History
 
+### 2026-08-22 — Fix: deck builder self-contained after tabs split
+
+Splitting Deck/Inventory into separate tabs broke cross-panel drag-and-drop.
+Fix: the **Deck tab now contains everything needed** — deck slots on top,
+owned card pool below:
+
+- **Click a pool card → equips to first empty slot** (respects owned copy
+  counts; dimmed when all copies are in the deck; green badge shows copies
+  equipped). Toast feedback for "deck full" / "no more copies". Also fixes
+  mobile, where HTML5 drag never worked.
+- **Drag still works** within the panel: pool → specific slot, drag slot
+  card off to remove. Click an equipped card to remove it.
+- Inventory tab remains as read-only collection browser.
+- Note: `/set-deck` on the backend still trusts client-side validation —
+  covered by the existing "input validation" roadmap item.
+
 ### 2026-08-22 — Sprint: UI layout pass (tabs + component split)
 
 First UI/UX pass, planned from user screenshots. Dark theme untouched.

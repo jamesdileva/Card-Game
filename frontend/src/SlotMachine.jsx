@@ -694,7 +694,12 @@ useEffect(() => {
         </div>
 
         {activeTab === "deck" && (
-          <DeckPanel deck={deck} inventory={inventory} setDeck={setDeck} />
+          <DeckPanel
+            deck={deck}
+            inventory={inventory}
+            setDeck={setDeck}
+            setToast={setToast}
+          />
         )}
         {activeTab === "inventory" && (
           <InventoryPanel inventory={inventory} />
