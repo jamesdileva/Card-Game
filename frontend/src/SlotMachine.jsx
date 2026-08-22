@@ -41,6 +41,7 @@ const [spinning, setSpinning] = useState(false);
 const [winningIndices, setWinningIndices] = useState([]);
 const [floatingWin, setFloatingWin] = useState(null);
 const [sessionExpired, setSessionExpired] = useState(false);
+const [reelsMoving, setReelsMoving] = useState(false);
   const bet = 100;
 const audioCtxRef = useRef(null);
 const spinLockRef = useRef(false);
@@ -249,6 +250,7 @@ let spinInterval = setInterval(() => {
 
           // ✅ final reel = apply results
         if (i === data.reels.length - 1) {
+          setReelsMoving(false); // stop the blur before the unlock timer
           setBalance(data.balance);
           setPayout(data.payout);
           setEffects(data.effects || {});
@@ -291,16 +293,19 @@ let spinInterval = setInterval(() => {
 
   }, 250); // 👈 spin duration
 
-  // 🔒 unlock AFTER full animation
+  // 🔒 unlock AFTER full animation; chain the next auto spin if enabled
   const totalSpinTime = 250 + (120 * data.reels.length);
 
-  setTimeout(() => {
+  function endSpinUnlock() {
     setSpinning(false);
+    setReelsMoving(false);
     spinLockRef.current = false;
     if (autoSpinRef.current) {
       spinFnRef.current();
     }
-  }, totalSpinTime + 100);
+  }
+
+  setTimeout(endSpinUnlock, totalSpinTime + 100);
 }
 
 
@@ -400,11 +405,19 @@ useEffect(() => {
         }, []);
 
 // SPIN
+        function stopAutoSpin(message) {
+          if (autoSpinRef.current) {
+            autoSpinRef.current = false;
+            setAutoSpin(false);
+            if (message) setToast(message);
+          }
+        }
+
         async function spin() {
           if (spinLockRef.current) return; // 🔒 HARD LOCK
           spinLockRef.current = true;
-
           setSpinning(true);
+          setReelsMoving(true);
 
           try {
             const res = await authedFetch(`${API}/game/spin`, {
@@ -420,6 +433,7 @@ useEffect(() => {
             if (!res) {
               spinLockRef.current = false;
               setSpinning(false);
+              setReelsMoving(false);
               return;
             }
 
@@ -427,8 +441,10 @@ useEffect(() => {
 
             if (data.error) {
               console.error(data.error);
+              stopAutoSpin(`Auto-spin stopped — ${data.error}`);
               spinLockRef.current = false;
               setSpinning(false);
+              setReelsMoving(false);
               return;
             }
 
@@ -437,8 +453,10 @@ useEffect(() => {
 
           } catch (err) {
             console.error(err);
+            stopAutoSpin("Auto-spin stopped — connection error");
             spinLockRef.current = false;
             setSpinning(false);
+            setReelsMoving(false);
           }
         }
         useEffect(() => {
@@ -832,10 +850,10 @@ useEffect(() => {
   {/* stronger inner glow */}
   <div className="absolute inset-0 rounded-3xl pointer-events-none shadow-[inset_0_0_40px_rgba(0,0,0,0.9)]" />
 
-  {/* outer glow on spin */}
+  {/* outer glow while the reels are moving */}
   <div
     className={`absolute inset-0 rounded-3xl pointer-events-none transition-all duration-300
-      ${spinning ? "shadow-[0_0_40px_rgba(34,197,94,0.25)]" : ""}
+      ${reelsMoving ? "shadow-[0_0_40px_rgba(34,197,94,0.25)]" : ""}
     `}
   />
 
@@ -848,8 +866,8 @@ useEffect(() => {
       <div
         key={i}
         className={`relative w-20 h-20 rounded-xl flex items-center justify-center text-4xl shadow-lg transition-all duration-200
-          ${spinning ? "blur-[2px] opacity-80 scale-95" : ""}
-          ${!spinning && isWinner
+          ${reelsMoving ? "blur-[2px] opacity-80 scale-95" : ""}
+          ${!reelsMoving && isWinner
             ? "bg-zinc-800 scale-110 shadow-[0_0_18px_rgba(250,204,21,0.6)]"
             : "bg-zinc-800"
           }

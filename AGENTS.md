@@ -43,6 +43,20 @@ Notes:
 
 ## Changelog / History
 
+### 2026-08-22 — Fix: auto-spin stall + blur-on-results
+
+- **Auto-spin silent stop:** the chained loop only re-triggered from the
+  success path (`finishSpin` unlock). Any `data.error` response (e.g.
+  "Not enough balance") or network error released the lock and ended the
+  chain forever with no explanation. Now `stopAutoSpin()` flips AUTO off
+  and toasts the reason; successful spins keep chaining via
+  `endSpinUnlock()`.
+- **Winner glow rendered blurred:** reel blur was tied to `spinning`, which
+  stays true until the *unlock* timer — ~120ms AFTER results land — so
+  wins appeared blurred (constant during auto-spin). New `reelsMoving`
+  state drives blur/glow and clears the moment the last reel settles;
+  `spinning` remains purely the input lock.
+
 ### 2026-08-22 — Sprint: card evolution (merge duplicates)
 
 - **Mechanic:** merge 3 owned copies of a card → 1 **random card of the
