@@ -43,6 +43,21 @@ Notes:
 
 ## Changelog / History
 
+### 2026-08-22 — Sprint: micro-interactions + small debt riders
+
+- **Crate reveal animation:** `openCrate` now has a suspense beat — full-
+  screen modal with a shaking 🎁 ("Opening...", ~900ms) before rewards
+  appear; cards pop in staggered (`crateShake`/`popIn` keyframes in
+  index.css). Balance still updates immediately; inventory/rewards land at
+  reveal time.
+- **Reel-spin polish:** reel tiles blur/dim/scale down while `spinning`
+  (winner glow suppressed during the spin so it only fires on results).
+- Debt riders: removed unused `cors` dep from frontend package.json;
+  audited for mojibake with a U+FFFD scan — none left in live code (the
+  corrupted files were legacy, deleted earlier) — roadmap item closed.
+- Verified: lint green (0 errors, same 3 exhaustive-deps warnings), build
+  passes. No backend changes.
+
 ### 2026-08-22 — Sprint: UI polish (floating wins, count-up, session expiry)
 
 - **Floating win amounts:** winning spins spawn "+$X" that floats up and

@@ -24,6 +24,7 @@ export default function SlotMachine() {
   const [playerBoost, setPlayerBoost] = useState(1);
   const [xpBoost, setXpBoost] = useState(1);
 const [crateResult, setCrateResult] = useState(null);
+const [crateOpening, setCrateOpening] = useState(false);
 const [toast, setToast] = useState(null);
 const [streak, setStreak] = useState(0);
 const [loginStreak, setLoginStreak] = useState(0);
@@ -434,27 +435,33 @@ useEffect(() => {
       if (data.balance) setBalance(data.balance);
 
       if (data.rewards) {
-        setCrateResult(data.rewards);
-        // 🔥 update inventory instantly
-        setInventory(prev => {
-          const updated = [...prev];
+        // 🎁 suspense beat: shake the crate, then reveal the cards
+        setCrateOpening(true);
+        setTimeout(() => {
+          setCrateOpening(false);
+          setCrateResult(data.rewards);
 
-          data.rewards.forEach(r => {
-            const existing = updated.find(i => i.id === r.id);
+          // 🔥 update inventory instantly
+          setInventory(prev => {
+            const updated = [...prev];
 
-            if (existing) {
-              existing.count += r.amount || 1;
-            } else {
-              updated.push({
-                id: r.id,
-                count: r.amount || 1,
-                rarity: r.rarity || "common"
-              });
-            }
+            data.rewards.forEach(r => {
+              const existing = updated.find(i => i.id === r.id);
+
+              if (existing) {
+                existing.count += r.amount || 1;
+              } else {
+                updated.push({
+                  id: r.id,
+                  count: r.amount || 1,
+                  rarity: r.rarity || "common"
+                });
+              }
+            });
+
+            return updated;
           });
-
-          return updated;
-        });
+        }, 900);
       }
     } catch (err) {
       console.error("Failed to open crate:", err);
@@ -597,7 +604,8 @@ useEffect(() => {
       <div
         key={i}
         className={`relative w-20 h-20 rounded-xl flex items-center justify-center text-4xl shadow-lg transition-all duration-200
-          ${isWinner
+          ${spinning ? "blur-[2px] opacity-80 scale-95" : ""}
+          ${!spinning && isWinner
             ? "bg-zinc-800 scale-110 shadow-[0_0_18px_rgba(250,204,21,0.6)]"
             : "bg-zinc-800"
           }
@@ -761,6 +769,21 @@ useEffect(() => {
 
     </div>
 
+    {/* 🎁 CRATE OPENING */}
+    {crateOpening && (
+      <div className="fixed inset-0 bg-black/70 flex flex-col items-center justify-center z-50 p-4">
+        <div
+          className="text-8xl"
+          style={{ animation: "crateShake 0.35s ease-in-out infinite" }}
+        >
+          🎁
+        </div>
+        <div className="text-zinc-400 mt-4 text-sm tracking-widest uppercase animate-pulse">
+          Opening...
+        </div>
+      </div>
+    )}
+
     {/*  CRATE RESULTS */}
       {crateResult && (
             <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
@@ -772,7 +795,14 @@ useEffect(() => {
 
                 <div className="flex gap-3 justify-center mb-2">
                   {crateResult.map((r, i) => (
-                    <div key={i} className="w-24 h-32">
+                    <div
+                      key={i}
+                      className="w-24 h-32"
+                      style={{
+                        animation: "popIn 0.4s ease-out both",
+                        animationDelay: `${i * 140}ms`
+                      }}
+                    >
                       <Card id={r.id} rarity={r.rarity} count={r.amount || 1} />
                     </div>
                   ))}

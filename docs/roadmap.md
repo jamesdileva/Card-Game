@@ -45,12 +45,14 @@ Items marked ✅ are done.
       `backend/test/pipeline.test.js`
 - [x] Remove legacy duplicate route `/buy-upgrade` (`/upgrade/payout` remains)
 - [x] Drop unused deps: `bcrypt` removed from backend package.json;
-      frontend `cors` still to remove
+      frontend `cors` removed
 - [x] Wild-pair synergy `bonusPayout` (+300) now actually paid out by
       `computePayout` (flat, on top of chain; does not count as a win for
       streaks). `effects.luck` deliberately still display-only — needs a
       design pass before it touches RNG
-- [ ] Fix mojibake/corrupted comments in a few files (`Login.jsx`, etc.)
+- [x] Fix mojibake/corrupted comments — U+FFFD scan found none in live code;
+      the corrupted files were legacy and were deleted in the docs-rewrite
+      sprint. Closed as no-op.
 - [x] Remove legacy root-level prototype files (app.js, index.html,
       style.css, public/, src/middleware/) — done during docs rewrite
 - [x] Migrate PostgreSQL/Supabase → SQLite (commit `624e440`)
@@ -92,7 +94,8 @@ Items marked ✅ are done.
 - [x] Balance/payout number transitions (count up/down instead of jump)
 - [x] Session expiry UX: graceful "Session expired" overlay with
       Back-to-Login instead of silent failed fetches
-- [ ] Micro-interactions sprint: reel-spin polish, crate reveal animation
+- [x] Micro-interactions: reel-spin blur/dim while spinning, crate reveal
+      animation (shaking gift suspense beat + staggered card pop-in)
 - [ ] Game switcher in HUD when second game ships (coinflip/high-low)
 
 ## Track 4 — Feature Phases
