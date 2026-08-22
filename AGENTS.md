@@ -43,6 +43,26 @@ Notes:
 
 ## Changelog / History
 
+### 2026-08-22 — Sprint: card evolution (merge duplicates)
+
+- **Mechanic:** merge 3 owned copies of a card → 1 **random card of the
+  next rarity** (common→rare→epic→legendary; legendary is terminal).
+  "Mutations" (variant stats) intentionally deferred as future flavor.
+- `backend/game/evolution.js` pure module (`MERGE_COST`, `nextRarity`,
+  `canEvolve`, `pickEvolvedCard`) + 4 tests; `/api/game/evolve {cardId}`
+  route — transactional, server-side ownership/count/rarity validation.
+- Frontend: ✨ Evolve buttons in the Inventory tab on cards with ≥3 copies
+  (with confirm dialog + toast), state refresh after success. `refreshState`
+  extracted from the mount effect so handlers can re-sync. Rarity ladder +
+  MERGE_COST mirrored in `components/cardNames.js`.
+- **Gotcha:** `SELECT rowid ...` on a table with an INTEGER PRIMARY KEY
+  returns the value under that column's name (`"id"`), not `"rowid"` — the
+  first version deleted by `undefined` and silently consumed nothing. E2E
+  smoke caught it (inventory unchanged after evolve). Fixed with an explicit
+  `SELECT id AS inv_id`.
+- Tests: 73 backend tests passing. Live smoke: 4 copies → evolve → 1 left +
+  evolved card; unowned/no-id/legendary → clean 400s.
+
 ### 2026-08-22 — Sprint: Phase 3 — luck design pass + card catalog to 10
 
 - **`effects.luck` is finally consumed** (was display-only since forever):

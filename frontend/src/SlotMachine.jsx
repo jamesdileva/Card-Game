@@ -331,39 +331,72 @@ useEffect(() => {
   }
 
   // LOAD UI STATE
-        useEffect(() => {
-          async function loadGame() {
-            try {
-              const res = await authedFetch(`${API}/game/state`);
+        async function refreshState() {
+          try {
+            const res = await authedFetch(`${API}/game/state`);
 
-              if (!res) return;
+            if (!res) return;
 
-              const data = await res.json();
+            const data = await res.json();
 
-              setBalance(data.balance || 0);
-              setDeck(data.deck || []);
-              setInventory(data.inventory || []); // ✅ HERE ONLY
-              setEffects(data.effects || {});
-              setXp(data.xp || 0);
-              setLevel(data.newLevel || data.level || level);
-              setPlayerBoost(data.payoutBoost || 1);
-              setXpBoost(data.xpBoost || 1);
-              setLoginStreak(data.loginStreak || 0);
-              setPendingCrate(data.pendingCrate || null);
-              if (data.loginReward > 0) {
-                setLoginPopup({
-                  streak: data.loginStreak,
-                  reward: data.loginReward
-                });
-              }
-              
-            } catch (err) {
-              console.error("Failed to load state:", err);
+            setBalance(data.balance || 0);
+            setDeck(data.deck || []);
+            setInventory(data.inventory || []); // ✅ HERE ONLY
+            setEffects(data.effects || {});
+            setXp(data.xp || 0);
+            setLevel(data.newLevel || data.level || level);
+            setPlayerBoost(data.payoutBoost || 1);
+            setXpBoost(data.xpBoost || 1);
+            setLoginStreak(data.loginStreak || 0);
+            setPendingCrate(data.pendingCrate || null);
+            if (data.loginReward > 0) {
+              setLoginPopup({
+                streak: data.loginStreak,
+                reward: data.loginReward
+              });
             }
-            
+
+          } catch (err) {
+            console.error("Failed to load state:", err);
+          }
+        }
+
+  // EVOLVE: merge duplicates
+        async function evolveCard(cardId) {
+          if (
+            !window.confirm(
+              `Merge 3× ${cardName(cardId)} into a random card of the next rarity?`
+            )
+          ) {
+            return;
           }
 
-          loadGame();
+          try {
+            const res = await authedFetch(`${API}/game/evolve`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ cardId })
+            });
+
+            if (!res) return;
+
+            const data = await res.json();
+
+            if (data.error) {
+              setToast(data.error);
+              return;
+            }
+
+            setToast(`✨ ${data.message}!`);
+            await refreshState();
+          } catch (err) {
+            console.error("Failed to evolve:", err);
+          }
+        }
+
+        useEffect(() => {
+          refreshState();
+          // eslint-disable-next-line react-hooks/exhaustive-deps
         }, []);
 
 // SPIN
@@ -988,7 +1021,7 @@ useEffect(() => {
           />
         )}
         {activeTab === "inventory" && (
-          <InventoryPanel inventory={inventory} />
+          <InventoryPanel inventory={inventory} onEvolve={evolveCard} />
         )}
         {activeTab === "store" && (
           <StorePanel

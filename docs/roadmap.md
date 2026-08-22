@@ -136,8 +136,12 @@ Items marked ✅ are done.
       work if wanted; balance tuning is ongoing via play
 - [ ] Build archetypes emerge naturally (High Roller / Safe Grinder / Chaos / Combo)
 - [ ] Corruption system on cards
-- [ ] Card evolution: merge duplicates, mutations
-- [ ] Near-miss presentation + streak smoothing (verify odds unchanged)
+- [x] Card evolution: merge 3 duplicates → random card of next rarity
+      (`/api/game/evolve`, ✨ buttons in Inventory tab; legendary is terminal).
+      "Mutations" (stat-variance variants) remain open as future flavor
+- [ ] Near-miss presentation + streak smoothing — NOTE: near-miss maps poorly
+      to the unique-count payout engine (pairs are too common to read as
+      "almost"); revisit only if reels ever get per-symbol values
 
 ### Phase 4 — Platform
 - [ ] UI polish: card icons/animations instead of raw JSON panels, mobile responsive

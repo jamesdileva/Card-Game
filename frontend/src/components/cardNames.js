@@ -46,3 +46,13 @@ export function rarityText(rarity) {
       return "text-zinc-400";
   }
 }
+
+// Card evolution (mirrors backend/game/evolution.js)
+export const MERGE_COST = 3;
+const RARITY_ORDER = ["common", "rare", "epic", "legendary"];
+
+export function nextRarity(rarity) {
+  const idx = RARITY_ORDER.indexOf(rarity);
+  if (idx === -1 || idx === RARITY_ORDER.length - 1) return null;
+  return RARITY_ORDER[idx + 1];
+}

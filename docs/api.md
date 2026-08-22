@@ -33,6 +33,7 @@ authenticated session (register/login first). Base URL: `/api`.
 | POST   | `/highlow`        | `{ action }`: `"start"` rolls a 1–100 base number into your session (free); `"guess"` needs `{ direction: "higher"\|"lower", bet }` against that number. Strictly over/under wins, ties lose; payout is fair odds × 0.95 scaled by winning outcomes (1 outcome → 95x). The roll becomes the next round's base |
 | POST   | `/set-deck`       | `{ newDeck: [cardId|null, …] }` — **server-side validation**: shape (≤3 slots) and ownership/copy-count checks against inventory (400 on violation). No longer trusts the client |
 | POST   | `/open-crate`     | `{ type }` — `basic` ($100), `premium` ($250), `elite` ($500), `corrupted` ($700, high variance: trash 30% / high-tier 50% / insane 20%), `timed` ($400). All crates can trigger crate-in-crate (4–10% by tier): response includes `bonusRewards`. **Timed flow**: first call buys → `{ pending: true, unlockAt }` (2 min); re-calling while locked → 400 with `remainingSeconds`; after unlock the same call opens it (guaranteed rare+) and clears the slot |
+| POST   | `/evolve`         | `{ cardId }` — merges 3 owned copies into one **random card of the next rarity** (common→rare→epic→legendary; legendary is terminal). Validated server-side: 400 on unowned card, insufficient copies, or legendary source. Transactional |
 | POST   | `/upgrade/payout` | Purchases payout boost upgrade |
 | POST   | `/upgrade/xp`     | Purchases XP boost upgrade |
 

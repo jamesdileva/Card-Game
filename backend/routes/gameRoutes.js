@@ -17,6 +17,7 @@ const {
   TIMED_UNLOCK_SECONDS,
   openCrate: openCrateRoll
 } = require("../game/crates");
+const { MERGE_COST, canEvolve, pickEvolvedCard } = require("../game/evolution");
 const { playCoinflip, computeCoinflipXP } = require("../game/coinflip");
 const {
   rollHiloNumber,
@@ -846,6 +847,55 @@ router.post("/open-crate", async (req, res) => {
     res.json({ rewards, bonusRewards, label: opened.label, balance: newBalance });
   } catch (err) {
     console.error("🔥 OPEN CRATE ERROR:", err);
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
+});
+
+// EVOLVE: merge 3 duplicates into one random card of the next rarity
+router.post("/evolve", async (req, res) => {
+  try {
+    if (!(await requireLogin(req, res))) return;
+
+    const cardId = req.body?.cardId;
+    if (typeof cardId !== "string" || cardId.length === 0) {
+      return res.status(400).json({ error: "Missing cardId" });
+    }
+
+    const rows = db
+      .prepare("SELECT id AS inv_id, rarity FROM inventory WHERE user_id=? AND card_id=?")
+      .all(req.session.userId, cardId);
+
+    if (rows.length === 0) {
+      return res.status(400).json({ error: `You do not own ${cardId}` });
+    }
+    if (!canEvolve(rows.length, rows[0].rarity)) {
+      return res.status(400).json({
+        error:
+          rows[0].rarity === "legendary"
+            ? "Legendary cards cannot evolve further"
+            : `Evolving needs ${MERGE_COST} copies — you have ${rows.length}`
+      });
+    }
+
+    const evolved = pickEvolvedCard(rows[0].rarity);
+
+    // remove MERGE_COST copies, then insert the evolved card
+    const remove = db.prepare(
+      "DELETE FROM inventory WHERE id=?"
+    );
+    const tx = db.transaction(() => {
+      for (let i = 0; i < MERGE_COST; i++) remove.run(rows[i].inv_id);
+      return insertReward(req.session.userId, evolved);
+    });
+    const inserted = tx.immediate();
+
+    res.json({
+      consumed: { id: cardId, count: MERGE_COST },
+      evolved: inserted,
+      message: `Merged ${MERGE_COST}× ${cardId} into ${inserted.id}`
+    });
+  } catch (err) {
+    console.error("🔥 EVOLVE ERROR:", err);
     res.status(500).json({ error: "Server error", details: err.message });
   }
 });
