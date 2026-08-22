@@ -7,6 +7,7 @@ import InventoryPanel from "./components/InventoryPanel";
 import StorePanel from "./components/StorePanel";
 import CoinFlip from "./components/CoinFlip";
 import HiLo from "./components/HiLo";
+import { cardName } from "./components/cardNames";
 
 export default function SlotMachine() {
   const [balance, setBalance] = useState(0);
@@ -29,8 +30,10 @@ export default function SlotMachine() {
   const [loginPopup, setLoginPopup] = useState(null);
   const [playerBoost, setPlayerBoost] = useState(1);
   const [xpBoost, setXpBoost] = useState(1);
-const [crateResult, setCrateResult] = useState(null);
-const [crateOpening, setCrateOpening] = useState(false);
+  const [crateResult, setCrateResult] = useState(null);
+  const [crateOpening, setCrateOpening] = useState(false);
+  const [crateBonus, setCrateBonus] = useState(null);
+  const [pendingCrate, setPendingCrate] = useState(null);
 const [toast, setToast] = useState(null);
 const [streak, setStreak] = useState(0);
 const [loginStreak, setLoginStreak] = useState(0);
@@ -260,6 +263,16 @@ let spinInterval = setInterval(() => {
           if (data.payout > 0) {
             setFloatingWin({ amount: data.payout, id: Date.now() });
           }
+          if (data.drop) {
+            const d = data.drop;
+            if (d.type === "coins") {
+              setToast(`💰 Bonus drop: +$${d.amount} coins!`);
+            } else if (d.type === "card") {
+              setToast(`🎁 Bonus drop: ${cardName(d.id)} card!`);
+            } else if (d.type === "crate") {
+              setToast(`🎰 Bonus drop: free ${d.label} — check your inventory!`);
+            }
+          }
           if (data.totalLevelReward > 0) {
             setLevelUp({
               rewards: data.levelRewards?.length
@@ -336,6 +349,7 @@ useEffect(() => {
               setPlayerBoost(data.payoutBoost || 1);
               setXpBoost(data.xpBoost || 1);
               setLoginStreak(data.loginStreak || 0);
+              setPendingCrate(data.pendingCrate || null);
               if (data.loginReward > 0) {
                 setLoginPopup({
                   streak: data.loginStreak,
@@ -581,11 +595,23 @@ useEffect(() => {
       const data = await res.json();
 
       if (data.error) {
-        setToast(data.error);
+        setToast(
+          data.remainingSeconds
+            ? `${data.error} — ${Math.ceil(data.remainingSeconds)}s left`
+            : data.error
+        );
         return;
       }
 
-      if (data.balance) setBalance(data.balance);
+      if (data.pending) {
+        // timed crate purchased — starts unlocking
+        setPendingCrate({ type: "timed", unlockAt: data.unlockAt });
+        setBalance(data.balance);
+        setToast("⏳ Timed crate purchased — come back in 2:00");
+        return;
+      }
+
+      if (data.balance != null) setBalance(data.balance);
 
       if (data.rewards) {
         // 🎁 suspense beat: shake the crate, then reveal the cards
@@ -593,12 +619,20 @@ useEffect(() => {
         setTimeout(() => {
           setCrateOpening(false);
           setCrateResult(data.rewards);
+          if (data.bonusRewards) {
+            // 🎁 crate-in-crate!
+            setCrateBonus(data.bonusRewards);
+          }
 
           // 🔥 update inventory instantly
+          const all = data.bonusRewards
+            ? [...data.rewards, ...data.bonusRewards]
+            : data.rewards;
+
           setInventory(prev => {
             const updated = [...prev];
 
-            data.rewards.forEach(r => {
+            all.forEach(r => {
               const existing = updated.find(i => i.id === r.id);
 
               if (existing) {
@@ -961,6 +995,7 @@ useEffect(() => {
             onUpgradeXP={upgradeXP}
             onUpgradePayout={upgradePayout}
             onOpenCrate={openCrate}
+            pendingCrate={pendingCrate}
           />
         )}
       </aside>
@@ -1006,8 +1041,34 @@ useEffect(() => {
                   ))}
                 </div>
 
+                {/* 🎁 CRATE-IN-CRATE */}
+                {crateBonus && (
+                  <>
+                    <div className="text-sm font-bold text-green-400 mt-3 mb-2 animate-pulse">
+                      🎁 CRATE-IN-CRATE BONUS!
+                    </div>
+                    <div className="flex gap-3 justify-center mb-2">
+                      {crateBonus.map((r, i) => (
+                        <div
+                          key={`bonus-${i}`}
+                          className="w-24 h-32"
+                          style={{
+                            animation: "popIn 0.4s ease-out both",
+                            animationDelay: `${(crateResult.length + i) * 140}ms`
+                          }}
+                        >
+                          <Card id={r.id} rarity={r.rarity} count={r.amount || 1} />
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+
                 <button
-                  onClick={() => setCrateResult(null)}
+                  onClick={() => {
+                    setCrateResult(null);
+                    setCrateBonus(null);
+                  }}
                   className="mt-3 bg-purple-500 px-6 py-1.5 rounded-lg font-semibold"
                 >
                   Nice

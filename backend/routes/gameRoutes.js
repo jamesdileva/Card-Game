@@ -2,15 +2,21 @@ const express = require("express");
 const router = express.Router();
 const db = require("../db");
 const { calculateDeckEffects, calculateSynergies } = require("../game/effects");
-const { cards } = require("../game/cards");
+const { cards, getRandomCard } = require("../game/cards");
 const {
   rollSpin,
   rollRandomEvent,
   applyEventToEffects,
   computePayout,
   computeXP,
-  applyLevels
+  applyLevels,
+  rollSpinDrop
 } = require("../game/spin");
+const {
+  CRATE_TYPES,
+  TIMED_UNLOCK_SECONDS,
+  openCrate: openCrateRoll
+} = require("../game/crates");
 const { playCoinflip, computeCoinflipXP } = require("../game/coinflip");
 const {
   rollHiloNumber,
@@ -21,10 +27,18 @@ const {
 } = require("../game/hilo");
 const {
   sanitizeBet,
-  isValidCrateType,
   sanitizeDeckShape,
   validateDeckOwnership
 } = require("../game/validate");
+
+// Insert a reward card into a user's inventory; returns the stored row.
+function insertReward(userId, reward) {
+  return db
+    .prepare(
+      "INSERT INTO inventory (user_id, card_id, rarity) VALUES (?,?,?) RETURNING card_id AS id, rarity"
+    )
+    .get(userId, reward.id, reward.rarity || "common");
+}
 
 // --- HELPER ---
 async function requireLogin(req, res) {
@@ -120,7 +134,8 @@ router.get("/state", async (req, res) => {
     loginReward: 0,
     inventory,
     deck,          // 🔥 NOW CORRECT
-    effects
+    effects,
+    pendingCrate: user.pending_crate ? JSON.parse(user.pending_crate) : null
   });
 });
 
@@ -387,6 +402,35 @@ router.post("/spin", async (req, res) => {
 
   const newBalance = user.balance - bet + finalPayout;
 
+  // --- 🎁 SPIN BONUS DROP ---
+  const drop = rollSpinDrop({ luckyCharm: deck.includes("lucky_charm") });
+  let dropInfo = null;
+
+  if (drop?.type === "coins") {
+    // 0.5x–2x bet, added on top of the spin result
+    const amount = Math.floor(bet * (0.5 + Math.random() * 1.5));
+    dropInfo = { type: "coins", amount };
+  } else if (drop?.type === "card") {
+    const card = getRandomCard();
+    insertReward(req.session.userId, card);
+    dropInfo = { type: "card", id: card.id, rarity: card.rarity };
+  } else if (drop?.type === "crate") {
+    // free elite pull, opened on the spot
+    const freeCrate = openCrateRoll("elite");
+    const crateRewards = freeCrate.rewards.map((r) =>
+      insertReward(req.session.userId, r)
+    );
+    dropInfo = {
+      type: "crate",
+      label: freeCrate.label,
+      rewards: crateRewards,
+      bonusRewards: freeCrate.bonusRewards
+        ? freeCrate.bonusRewards.map((r) => insertReward(req.session.userId, r))
+        : null
+    };
+  }
+  if (dropInfo?.type === "coins") newBalance += dropInfo.amount;
+
   // --- ⭐ XP + LEVELS ---
   const xpGain = computeXP(basePayout, spinEffects.xpMult, user.xp_boost);
   const { newXP, newLevel, levelRewards, totalLevelReward } = applyLevels({
@@ -428,7 +472,8 @@ router.post("/spin", async (req, res) => {
     event,
     streak: newStreak,
     levelRewards,
-    totalLevelReward
+    totalLevelReward,
+    drop: dropInfo
   });
 });
 
@@ -722,60 +767,83 @@ router.post("/open-crate", async (req, res) => {
 
     const type = req.body?.type;
 
-    if (!isValidCrateType(type)) {
+    if (!CRATE_TYPES[type]) {
       return res.status(400).json({ error: "Invalid crate type" });
     }
 
-    const costMap = { basic: 100, premium: 250, elite: 500 };
-    const cost = costMap[type];
-
-    const balRes = db
-      .prepare("SELECT balance FROM users WHERE id=?")
+    const user = db
+      .prepare("SELECT balance, pending_crate FROM users WHERE id=?")
       .get(req.session.userId);
 
-    let balance = balRes.balance;
+    // --- ⏳ TIMED CRATE: buy → wait → claim ---
+    if (type === "timed") {
+      const pending = user.pending_crate ? JSON.parse(user.pending_crate) : null;
+      const now = Date.now();
 
-    if (balance < cost) {
+      // No pending → purchase one.
+      if (!pending) {
+        const cost = CRATE_TYPES.timed.cost;
+        if (user.balance < cost) {
+          return res.json({ error: "Not enough balance" });
+        }
+
+        const unlockAt = now + TIMED_UNLOCK_SECONDS * 1000;
+        db.prepare(
+          "UPDATE users SET balance = balance - ?, pending_crate = ? WHERE id=?"
+        ).run(cost, JSON.stringify({ type: "timed", unlockAt }), req.session.userId);
+
+        return res.json({
+          pending: true,
+          unlockAt,
+          seconds: TIMED_UNLOCK_SECONDS,
+          balance: user.balance - cost
+        });
+      }
+
+      // Pending but still locked.
+      if (now < pending.unlockAt) {
+        return res.status(400).json({
+          error: "Timed crate is still unlocking",
+          remainingSeconds: Math.ceil((pending.unlockAt - now) / 1000)
+        });
+      }
+
+      // Ready — open it and clear the slot.
+      const opened = openCrateRoll("timed");
+      const rewards = opened.rewards.map((r) => insertReward(req.session.userId, r));
+      let bonusRewards = null;
+      if (opened.bonusRewards) {
+        bonusRewards = opened.bonusRewards.map((r) => insertReward(req.session.userId, r));
+      }
+
+      db.prepare("UPDATE users SET pending_crate = NULL WHERE id=?").run(
+        req.session.userId
+      );
+
+      return res.json({ rewards, bonusRewards, balance: user.balance });
+    }
+
+    // --- STANDARD CRATES ---
+    const cost = CRATE_TYPES[type].cost;
+
+    if (user.balance < cost) {
       return res.json({ error: "Not enough balance" });
     }
 
-    balance -= cost;
-
-    db.prepare(
-      "UPDATE users SET balance=? WHERE id=?"
-    ).run(balance, req.session.userId);
-
-    const rarityPool = {
-      basic: ["common","common","rare"],
-      premium: ["common","rare","epic"],
-      elite: ["rare","epic","legendary"]
-    };
-
-    const rewards = [];
-
-    for (let i = 0; i < 2; i++) {
-      const rarity = rarityPool[type][Math.floor(Math.random() * rarityPool[type].length)];
-
-      const poolCards = cards.filter(c => c.rarity === rarity);
-
-      if (poolCards.length === 0) {
-        console.error("❌ No cards for rarity:", rarity);
-        continue;
-      }
-
-      const randomCard = poolCards[Math.floor(Math.random() * poolCards.length)];
-
-      const result = db
-        .prepare(
-          "INSERT INTO inventory (user_id, card_id, rarity) VALUES (?,?,?) RETURNING card_id AS id, rarity"
-        )
-        .get(req.session.userId, randomCard.id, rarity);
-
-      rewards.push(result);
+    const opened = openCrateRoll(type);
+    const rewards = opened.rewards.map((r) => insertReward(req.session.userId, r));
+    let bonusRewards = null;
+    if (opened.bonusRewards) {
+      bonusRewards = opened.bonusRewards.map((r) => insertReward(req.session.userId, r));
     }
 
-    res.json({ rewards, balance });
+    const newBalance = user.balance - cost;
+    db.prepare("UPDATE users SET balance=? WHERE id=?").run(
+      newBalance,
+      req.session.userId
+    );
 
+    res.json({ rewards, bonusRewards, label: opened.label, balance: newBalance });
   } catch (err) {
     console.error("🔥 OPEN CRATE ERROR:", err);
     res.status(500).json({ error: "Server error", details: err.message });

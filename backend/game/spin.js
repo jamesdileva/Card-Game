@@ -152,6 +152,27 @@ function applyLevels({ xp, level, xpGain, lastRewardedLevel }) {
   return { newXP, newLevel, levelRewards, totalLevelReward };
 }
 
+// Slot spin bonus drops. Base odds per design: 90% nothing / 7% coin drop /
+// 2% card drop / 1% free elite-crate pull. A deck with lucky_charm shifts
+// ~5 percentage points from "nothing" into the drop table.
+function rollSpinDrop({ luckyCharm = false } = {}) {
+  const nothingChance = luckyCharm ? 0.85 : 0.9;
+  const roll = Math.random();
+
+  if (roll < nothingChance) return null;
+
+  const kindRoll = Math.random();
+
+  if (kindRoll < 0.7) {
+    // coins scale with bet so it stays relevant at higher multipliers
+    return { type: "coins" };
+  }
+  if (kindRoll < 0.9) {
+    return { type: "card" };
+  }
+  return { type: "crate" };
+}
+
 module.exports = {
   SYMBOLS,
   BASE_BET,
@@ -164,5 +185,6 @@ module.exports = {
   computeXP,
   getLevelReward,
   xpToNext,
-  applyLevels
+  applyLevels,
+  rollSpinDrop
 };

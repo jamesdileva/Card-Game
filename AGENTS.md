@@ -43,6 +43,33 @@ Notes:
 
 ## Changelog / History
 
+### 2026-08-22 — Sprint: corrupted/timed crates, crate-in-crate, spin drops (Phase 2 crates complete)
+
+- **Crate logic extracted** to `backend/game/crates.js` (`CRATE_TYPES` map +
+  `openCrate(type)`) — the inline pool code is gone from gameRoutes.js.
+- **Corrupted Crate ($700):** trash 30% (1 common) / high tier 50% (rares/
+  epics ×2) / insane 20% (legendaries ×2).
+- **Timed Crate ($400):** buy → `pending_crate` JSON column on users (new
+  `ensureColumn` migration helper in db.js + schema.sql updated) → unlocks
+  after 2 min → same endpoint opens it; guaranteed rare+ pool. One pending
+  at a time. `/state` now returns `pendingCrate`.
+- **Crate-in-crate:** 4/6/8/10% by tier; response `bonusRewards`, shown as a
+  "CRATE-IN-CRATE BONUS!" section in the reveal modal.
+- **Spin bonus drops:** `rollSpinDrop` in spin.js — 10%/spin (15% with
+  Lucky Charm): coins 0.5–2× bet added to balance / random catalog card
+  inserted / free Elite pull opened on the spot. Response `drop` field;
+  frontend toasts it.
+- Store UI: 5-crate grid, timed button shows live countdown then pulses
+  "OPEN!" when ready.
+- **Bug caught in E2E:** the first wiring put `drop: dropInfo` into the
+  coinflip response instead of spin (identical closing blocks — edit anchor
+  matched the wrong route), which would have ReferenceError'd every flip and
+  silently swallowed all drops. Caught because 60 spins produced no drop.
+  Lesson: don't anchor edits on duplicate response blocks.
+- Tests: 60 backend tests passing (crates + drops suites). Live smoke:
+  corrupted roll correct tiers, timed buy→locked→pending in state, bad type
+  400, drop fired with crate rewards inserted.
+
 ### 2026-08-22 — Sprint: 0–100 High/Low (third game)
 
 - `backend/game/hilo.js` pure module: stateful rounds — server rolls a

@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
   login_streak INTEGER DEFAULT 0,
   last_rewarded_level INTEGER DEFAULT 0,
   claimed_level_rewards TEXT DEFAULT '[]',
+  pending_crate TEXT DEFAULT NULL,
   inventory TEXT DEFAULT '[]'
 );
 

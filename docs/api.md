@@ -32,9 +32,16 @@ authenticated session (register/login first). Base URL: `/api`.
 | POST   | `/coinflip`       | `{ bet, choice }` — `choice` must be `"heads"` or `"tails"`; same bet validation. 50/50 even money; deck streak bonus and flat synergy bonuses apply, payout multipliers deliberately do not |
 | POST   | `/highlow`        | `{ action }`: `"start"` rolls a 1–100 base number into your session (free); `"guess"` needs `{ direction: "higher"\|"lower", bet }` against that number. Strictly over/under wins, ties lose; payout is fair odds × 0.95 scaled by winning outcomes (1 outcome → 95x). The roll becomes the next round's base |
 | POST   | `/set-deck`       | `{ newDeck: [cardId|null, …] }` — **server-side validation**: shape (≤3 slots) and ownership/copy-count checks against inventory (400 on violation). No longer trusts the client |
-| POST   | `/open-crate`     | `{ type }` — `type` must be `basic`, `premium`, or `elite` (400 otherwise). Charges cost, rolls reward, adds card(s) to inventory |
+| POST   | `/open-crate`     | `{ type }` — `basic` ($100), `premium` ($250), `elite` ($500), `corrupted` ($700, high variance: trash 30% / high-tier 50% / insane 20%), `timed` ($400). All crates can trigger crate-in-crate (4–10% by tier): response includes `bonusRewards`. **Timed flow**: first call buys → `{ pending: true, unlockAt }` (2 min); re-calling while locked → 400 with `remainingSeconds`; after unlock the same call opens it (guaranteed rare+) and clears the slot |
 | POST   | `/upgrade/payout` | Purchases payout boost upgrade |
 | POST   | `/upgrade/xp`     | Purchases XP boost upgrade |
+
+### Spin bonus drops
+
+Every `/spin` rolls a drop (10% base chance; Lucky Charm in deck raises it
+to 15%): ~70% of drops are coins (0.5–2× bet, added to balance), ~20% a
+random card inserted into inventory, ~10% a free Elite Crate opened on the
+spot. Response carries `drop: { type, ... }`; `null` when nothing dropped.
 
 Removed legacy routes: `/buy-upgrade` (superseded by `/upgrade/*`).
 

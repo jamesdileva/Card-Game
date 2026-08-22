@@ -118,9 +118,14 @@ Items marked ✅ are done.
 - [x] 0–100 High/Low (stateful rounds via session base number; ties lose;
       payout = fair odds × 0.95 scaled by outcomes, up to 95x; chained runs;
       same deck-effect policy as coinflip)
-- [ ] Remaining crate types (corrupted, timed) + crate modifiers from deck
-- [ ] Crate-in-crate mechanic
-- [ ] Slot spin bonus drops (coins / slot crates / jackpot crates)
+- [x] Remaining crate types (corrupted, timed) + crate modifiers from deck
+      (corrupted: trash 30%/high 50%/insane 20%; timed: $400, 2-min unlock,
+      rare+ guaranteed; Lucky Charm improves spin-drop odds — full deck-based
+      crate modifiers still open for future tuning)
+- [x] Crate-in-crate mechanic (4–10% chance by tier; bonus rewards shown in
+      the reveal modal)
+- [x] Slot spin bonus drops (10% per spin: coins / random card / free elite
+      crate pull; Lucky Charm bumps to 15%)
 
 ### Phase 3 — Depth
 - [ ] Full 10-starter-card set balanced to design targets (see game-design.md)

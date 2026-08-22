@@ -13,4 +13,14 @@ if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='users'
   db.exec(fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8"));
 }
 
+// Lightweight migrations for databases created before a column existed.
+function ensureColumn(table, column, definition) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
+ensureColumn("users", "pending_crate", "TEXT DEFAULT NULL");
+
 module.exports = db;
