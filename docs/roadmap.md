@@ -1,7 +1,18 @@
 # Roadmap
 
-Two tracks: **debt & fixes** (near-term, keeps the game trustworthy and
-maintainable) and **feature phases** (new content). Items marked ✅ are done.
+Tracks: **debt & fixes** → **quality** → **UI/UX** (near-term, keeps the game
+trustworthy and maintainable), then **feature phases** (new content).
+Items marked ✅ are done.
+
+## Suggested execution order
+
+1. **Guard dev routes** — security hole live in prod, ~5-line fix
+2. **Logout endpoint** — small, user-visible breakage
+3. **Deduplicate slot/crate logic + strip debug logging** — same file
+   (`gameRoutes.js`), makes the spin pipeline unit-testable before touching it
+4. **Auto-spin bugs** — most visible player-facing bugs
+5. **Frontend lint cleanup** — gets `npm run lint` green as a usable gate
+6. Then quality/UI items in any order; feature work only after 1–4
 
 ## Track 1 — Debt & Fixes
 
@@ -35,7 +46,39 @@ maintainable) and **feature phases** (new content). Items marked ✅ are done.
 - [x] Migrate PostgreSQL/Supabase → SQLite (commit `624e440`)
 - [x] Backend test suite via `node:test` (`npm test`)
 
-## Track 2 — Feature Phases
+## Track 2 — Quality Improvements
+
+### Backend
+- [ ] Shared error-handling middleware instead of per-route try/catch
+      (consistent `{ error }` responses, no stack leaks)
+- [ ] Input validation helper for POST bodies (bet > 0, crate type enum,
+      deck array shape) — reject early with 400s
+- [ ] Warn/refuse to boot without `SESSION_SECRET` in production
+- [ ] Expand backend tests: spin pipeline via route modules once logic is
+      deduplicated (deck effects, multipliers, streak updates)
+
+### Frontend
+- [ ] Add a test framework (vitest + @testing-library/react) — start with
+      deck validation and payout display components
+- [ ] Central fetch wrapper: consistent error toasts, session-expiry handling
+      (redirect to login on 401)
+- [ ] Optimistic UI states or loading guards so double-clicks can't fire
+      double spins/crate opens
+
+## Track 3 — UI/UX Improvements
+
+- [ ] Fix auto-spin control polish: disable bet/upgrade buttons while active,
+      show live stats updating (overlaps Track 1 auto-spin bugs)
+- [ ] Win/loss feedback: toast or floating win amounts on payouts
+      (dead `toast`/`floatingWin` state in SlotMachine.jsx suggests this was started)
+- [ ] Card visuals: rarity-colored borders/icons in inventory + deck builder
+      instead of plain text lists
+- [ ] Crate opening animation / reveal moment
+- [ ] Mobile-responsive layout (reels and controls currently desktop-sized)
+- [ ] Balance/payout number transitions (count up/down instead of jump)
+- [ ] Session expiry UX: graceful "logged out" screen instead of failed fetches
+
+## Track 4 — Feature Phases
 
 ### Phase 1 — Stable MVP (current)
 - [x] Slot machine with animated reels + multipliers
