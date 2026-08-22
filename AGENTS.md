@@ -43,6 +43,21 @@ Notes:
 
 ## Changelog / History
 
+### 2026-08-22 — Sprint: UI polish (floating wins, count-up, session expiry)
+
+- **Floating win amounts:** winning spins spawn "+$X" that floats up and
+  fades over the reels (`floatUp` keyframes in index.css, auto-cleared after
+  1.2s). Fires from `finishSpin` when payout > 0.
+- **Number count-up:** new `hooks/useCountUp.js` (rAF, ease-out, resumes
+  from displayed value if interrupted). HUD balance counts to new value;
+  result box payout counts up over 400ms.
+- **Session expiry UX:** `authedFetch` wrapper in SlotMachine checks every
+  authed call (state/spin/upgrades/crates) for 401 → flips
+  `sessionExpired` state → full-screen "Session expired" overlay with
+  Back-to-Login button. Callers treat `null` response as bail-out. Logout
+  intentionally NOT wrapped (it destroys the session on purpose).
+- Verified: lint green (0 errors), build passes. No backend changes.
+
 ### 2026-08-22 — Fix: deck builder self-contained after tabs split
 
 Splitting Deck/Inventory into separate tabs broke cross-panel drag-and-drop.

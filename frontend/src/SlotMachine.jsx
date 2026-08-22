@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import useCountUp from "./hooks/useCountUp";
 import HudBar from "./components/HudBar";
 import Card from "./components/Card";
 import DeckPanel from "./components/DeckPanel";
@@ -28,12 +29,25 @@ const [streak, setStreak] = useState(0);
 const [loginStreak, setLoginStreak] = useState(0);
 const [spinning, setSpinning] = useState(false);
 const [winningIndices, setWinningIndices] = useState([]);
+const [floatingWin, setFloatingWin] = useState(null);
+const [sessionExpired, setSessionExpired] = useState(false);
   const bet = 100;
 const audioCtxRef = useRef(null);
 const spinLockRef = useRef(false);
 const autoSpinRef = useRef(autoSpin);
 const spinFnRef = useRef(null);
 const API = import.meta.env.VITE_API_URL + "api";
+const displayBalance = useCountUp(balance);
+const displayPayout = useCountUp(payout, 400);
+
+async function authedFetch(url, options = {}) {
+  const res = await fetch(url, { credentials: "include", ...options });
+  if (res.status === 401) {
+    setSessionExpired(true);
+    return null;
+  }
+  return res;
+}
 
 
 useEffect(() => {
@@ -156,10 +170,11 @@ function getWinningIndices(reels) {
   return winners.flat();
 }
 async function upgradeXP() {
-  const res = await fetch(`${API}/game/upgrade/xp`, {
-    method: "POST",
-    credentials: "include"
+  const res = await authedFetch(`${API}/game/upgrade/xp`, {
+    method: "POST"
   });
+
+  if (!res) return;
 
   const data = await res.json();
 
@@ -174,10 +189,11 @@ async function upgradeXP() {
 }
 
 async function upgradePayout() {
-  const res = await fetch(`${API}/game/upgrade/payout`, {
-    method: "POST",
-    credentials: "include"
+  const res = await authedFetch(`${API}/game/upgrade/payout`, {
+    method: "POST"
   });
+
+  if (!res) return;
 
   const data = await res.json();
 
@@ -219,7 +235,7 @@ let spinInterval = setInterval(() => {
           return updated;
         });
 
-        // ✅ final reel = apply results
+          // ✅ final reel = apply results
         if (i === data.reels.length - 1) {
           setBalance(data.balance);
           setPayout(data.payout);
@@ -232,6 +248,9 @@ let spinInterval = setInterval(() => {
           const wins = getWinningIndices(data.reels);
           setWinningIndices(wins);
           stopSpinSound();
+          if (data.payout > 0) {
+            setFloatingWin({ amount: data.payout, id: Date.now() });
+          }
           if (data.totalLevelReward > 0) {
             setLevelUp({
               rewards: data.levelRewards?.length
@@ -269,6 +288,12 @@ useEffect(() => {
   return () => clearTimeout(t);
 }, [toast]);
 
+useEffect(() => {
+  if (!floatingWin) return;
+  const t = setTimeout(() => setFloatingWin(null), 1200);
+  return () => clearTimeout(t);
+}, [floatingWin]);
+
   function symbolEmoji(symbol) {
     switch (symbol) {
       case "cherry": return "🍒";
@@ -287,9 +312,9 @@ useEffect(() => {
         useEffect(() => {
           async function loadGame() {
             try {
-              const res = await fetch(`${API}/game/state`, {
-                credentials: "include"
-              });
+              const res = await authedFetch(`${API}/game/state`);
+
+              if (!res) return;
 
               const data = await res.json();
 
@@ -326,16 +351,21 @@ useEffect(() => {
           setSpinning(true);
 
           try {
-            const res = await fetch(`${API}/game/spin`, {
+            const res = await authedFetch(`${API}/game/spin`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              credentials: "include",
               body: JSON.stringify({
                 bet: 100 * multiplier,
                 multiplier,
 
               })
             });
+
+            if (!res) {
+              spinLockRef.current = false;
+              setSpinning(false);
+              return;
+            }
 
             const data = await res.json();
 
@@ -386,12 +416,13 @@ useEffect(() => {
 
   async function openCrate(type) {
     try {
-      const res = await fetch(`${API}/game/open-crate`, {
+      const res = await authedFetch(`${API}/game/open-crate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ type })
       });
+
+      if (!res) return;
 
       const data = await res.json();
 
@@ -447,7 +478,7 @@ useEffect(() => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white">
       <HudBar
-        balance={balance}
+        balance={displayBalance}
         xp={xp}
         level={level}
         loginStreak={loginStreak}
@@ -596,6 +627,21 @@ useEffect(() => {
         </div>
       ))
       )}
+
+  {/* 🎈 FLOATING WIN */}
+  {floatingWin && (
+    <div
+      key={floatingWin.id}
+      className="absolute inset-x-0 top-1/4 z-20 pointer-events-none flex justify-center"
+    >
+      <div
+        className="text-5xl font-extrabold text-yellow-300 drop-shadow-[0_0_16px_rgba(250,204,21,0.9)]"
+        style={{ animation: "floatUp 1.15s ease-out forwards" }}
+      >
+        +${floatingWin.amount.toLocaleString()}
+      </div>
+    </div>
+  )}
 </div></div>
 
 {/* 💰 RESULT + 🎮 CONTROLS */}
@@ -617,7 +663,7 @@ useEffect(() => {
         ${payout > 5000 ? "text-orange-400 scale-135" : ""}
       `}
     >
-      {payout > 0 ? `+$${payout.toLocaleString()}` : "—"}
+      {displayPayout > 0 ? `+$${displayPayout.toLocaleString()}` : "—"}
     </div>
   </div>
 
@@ -800,6 +846,23 @@ useEffect(() => {
         </div>
       </div>
     )}
+    {/* 🔒 SESSION EXPIRED */}
+    {sessionExpired && (
+      <div className="fixed inset-0 bg-black/90 z-[60] flex flex-col items-center justify-center gap-4 p-6 text-center">
+        <div className="text-5xl">🔒</div>
+        <div className="text-xl font-bold">Session expired</div>
+        <p className="text-zinc-400 text-sm max-w-xs">
+          Your session ran out. Log back in to keep spinning.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="bg-blue-500 hover:bg-blue-600 px-6 py-2 rounded-xl font-semibold"
+        >
+          Back to Login
+        </button>
+      </div>
+    )}
+
     {/* 🔔 TOAST */}
     {toast && (
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-zinc-900 border border-zinc-600 text-sm text-white px-5 py-3 rounded-xl shadow-2xl z-50 animate-[pulse_0.3s_ease]">

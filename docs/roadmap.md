@@ -88,11 +88,12 @@ Items marked ✅ are done.
       mid-word ID breaks
 - [x] Crate opening reveal shows Card visuals instead of raw ids
 - [x] Toast feedback for upgrades/errors (bottom-center, auto-dismiss)
-- [ ] Win/loss feedback: floating win amounts on payouts
-- [ ] Balance/payout number transitions (count up/down instead of jump)
+- [x] Win/loss feedback: floating win amounts on payouts
+- [x] Balance/payout number transitions (count up/down instead of jump)
+- [x] Session expiry UX: graceful "Session expired" overlay with
+      Back-to-Login instead of silent failed fetches
 - [ ] Micro-interactions sprint: reel-spin polish, crate reveal animation
 - [ ] Game switcher in HUD when second game ships (coinflip/high-low)
-- [ ] Session expiry UX: graceful "logged out" screen instead of failed fetches
 
 ## Track 4 — Feature Phases
 
