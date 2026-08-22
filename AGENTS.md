@@ -43,6 +43,38 @@ Notes:
 
 ## Changelog / History
 
+### 2026-08-22 — Sprint: UI layout pass (tabs + component split)
+
+First UI/UX pass, planned from user screenshots. Dark theme untouched.
+
+- **Layout restructure:** single `max-w-md` vertical column replaced by a
+  two-column desktop layout (`max-w-5xl`): game column (stats/effects bars,
+  reels, result, controls) + right sidebar with **Deck/Inventory/Store as
+  tabs**. Mobile keeps the same order stacked vertically.
+- **Sticky HUD bar** (`components/HudBar.jsx`): balance, level + XP progress,
+  login streak, logout — always visible while scrolling/spinning. Replaces
+  the old balance/level block inside the machine card.
+- **Component split** (`frontend/src/components/`):
+  - `cardNames.js` — display-name map (`mythic_multiplier` → "Mythic
+    Multiplier") + rarity border/text classes; fixes the ugly mid-word
+    breaks ("mythic_mul tiplier")
+  - `Card.jsx` — reusable card visual: rarity-colored text + border, count
+    badge top-right
+  - `DeckPanel.jsx` — drag-and-drop deck builder (logic moved verbatim,
+    `validDropRef` now internal to the panel)
+  - `InventoryPanel.jsx` — grid of draggable cards
+  - `StorePanel.jsx` — upgrades + crates (calls handlers passed from parent)
+- `SlotMachine.jsx` is now the stateful orchestrator: spin/audio logic +
+  game column + tab state + modals (crate rewards modal now shows Card
+  visuals instead of raw ids). Crate opening extracted to named
+  `openCrate(type)`; logout to `logout()`. Removed collapse toggles
+  (deckMin/inventoryMin/storeOpen) — tabs replace them.
+- Future games hook: new games (coinflip, high-low) should get a **top-level
+  game switcher in the HUD**, swapping the main column — side tabs stay for
+  account panels. Components structured so SlotMachine can become one of
+  several "game" components later (separate sprint).
+- Verified: lint green (0 errors), build passes. No backend changes.
+
 ### 2026-08-22 — Sprint: auto-spin bug fixes + wild-pair payout + frontend hygiene
 
 Root causes found and fixed for both `notes.md` auto-spin bugs:

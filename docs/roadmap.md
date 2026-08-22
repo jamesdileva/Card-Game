@@ -80,15 +80,18 @@ Items marked ✅ are done.
 
 ## Track 3 — UI/UX Improvements
 
-- [ ] Fix auto-spin control polish: disable bet/upgrade buttons while active,
-      show live stats updating (overlaps Track 1 auto-spin bugs)
-- [ ] Win/loss feedback: toast or floating win amounts on payouts
-      (dead `toast`/`floatingWin` state in SlotMachine.jsx suggests this was started)
-- [ ] Card visuals: rarity-colored borders/icons in inventory + deck builder
-      instead of plain text lists
-- [ ] Crate opening animation / reveal moment
-- [ ] Mobile-responsive layout (reels and controls currently desktop-sized)
+- [x] Two-column desktop layout: machine left, Deck/Inventory/Store tabs
+      right (sticky HUD bar with balance/level/XP/streak/logout); mobile
+      stacks vertically
+- [x] Card visuals: display-name map + rarity-colored text/borders +
+      count badges (`components/Card.jsx`, `cardNames.js`) — no more
+      mid-word ID breaks
+- [x] Crate opening reveal shows Card visuals instead of raw ids
+- [x] Toast feedback for upgrades/errors (bottom-center, auto-dismiss)
+- [ ] Win/loss feedback: floating win amounts on payouts
 - [ ] Balance/payout number transitions (count up/down instead of jump)
+- [ ] Micro-interactions sprint: reel-spin polish, crate reveal animation
+- [ ] Game switcher in HUD when second game ships (coinflip/high-low)
 - [ ] Session expiry UX: graceful "logged out" screen instead of failed fetches
 
 ## Track 4 — Feature Phases

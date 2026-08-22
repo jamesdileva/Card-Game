@@ -1,15 +1,16 @@
 import { useState, useEffect, useRef } from "react";
+import HudBar from "./components/HudBar";
+import Card from "./components/Card";
+import DeckPanel from "./components/DeckPanel";
+import InventoryPanel from "./components/InventoryPanel";
+import StorePanel from "./components/StorePanel";
+
 export default function SlotMachine() {
   const [balance, setBalance] = useState(0);
   const [payout, setPayout] = useState(0);
   const [autoSpin, setAutoSpin] = useState(false);
   const [multiplier, setMultiplier] = useState(1);
-  const [inventoryMin, setInventoryMin] = useState(() => {
-  return localStorage.getItem("inventoryMin") === "true";
-});
-  const [deckMin, setDeckMin] = useState(() => {
-  return localStorage.getItem("deckMin") === "true";
-});
+  const [activeTab, setActiveTab] = useState("deck");
   const [event, setEvent] = useState(null);
   const [deck, setDeck] = useState([]);
   const [effects, setEffects] = useState({});
@@ -19,7 +20,6 @@ export default function SlotMachine() {
   const [inventory, setInventory] = useState([]);
   const [levelUp, setLevelUp] = useState(null);
   const [loginPopup, setLoginPopup] = useState(null);
-  const [storeOpen, setStoreOpen] = useState(false);
   const [playerBoost, setPlayerBoost] = useState(1);
   const [xpBoost, setXpBoost] = useState(1);
 const [crateResult, setCrateResult] = useState(null);
@@ -30,7 +30,6 @@ const [spinning, setSpinning] = useState(false);
 const [winningIndices, setWinningIndices] = useState([]);
   const bet = 100;
 const audioCtxRef = useRef(null);
-const validDropRef = useRef(false);
 const spinLockRef = useRef(false);
 const autoSpinRef = useRef(autoSpin);
 const spinFnRef = useRef(null);
@@ -264,35 +263,11 @@ let spinInterval = setInterval(() => {
 }
 
 
-// DECK OPEN AND INVENTORY OPEN/CLOSED SETTINGS
-useEffect(() => {
-  localStorage.setItem("deckMin", deckMin);
-}, [deckMin]);
-
-useEffect(() => {
-  localStorage.setItem("inventoryMin", inventoryMin);
-}, [inventoryMin]);
-
 useEffect(() => {
   if (!toast) return;
   const t = setTimeout(() => setToast(null), 2500);
   return () => clearTimeout(t);
 }, [toast]);
-
-function rarityStyle(rarity) {
-  switch (rarity) {
-    case "common":
-      return "border-zinc-500";
-    case "rare":
-      return "border-blue-400 shadow-blue-500/30";
-    case "epic":
-      return "border-purple-400 shadow-purple-500/40";
-    case "legendary":
-      return "border-yellow-400 shadow-yellow-500/40";
-    default:
-      return "border-zinc-500";
-  }
-}
 
   function symbolEmoji(symbol) {
     switch (symbol) {
@@ -408,55 +383,82 @@ function rarityStyle(rarity) {
       });
 
     }, [deck]);
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white flex flex-col items-center p-6">
-    
-    
-    <div className="w-full max-w-md flex justify-end mb-2">
-      <button
-        onClick={async () => {
-          await fetch(`${API}/auth/logout`, {
-            method: "POST",
-            credentials: "include"
+
+  async function openCrate(type) {
+    try {
+      const res = await fetch(`${API}/game/open-crate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ type })
+      });
+
+      const data = await res.json();
+
+      if (data.error) {
+        setToast(data.error);
+        return;
+      }
+
+      if (data.balance) setBalance(data.balance);
+
+      if (data.rewards) {
+        setCrateResult(data.rewards);
+        // 🔥 update inventory instantly
+        setInventory(prev => {
+          const updated = [...prev];
+
+          data.rewards.forEach(r => {
+            const existing = updated.find(i => i.id === r.id);
+
+            if (existing) {
+              existing.count += r.amount || 1;
+            } else {
+              updated.push({
+                id: r.id,
+                count: r.amount || 1,
+                rarity: r.rarity || "common"
+              });
+            }
           });
-          window.location.reload(); // or redirect to login
-        }}
-        className="text-xs bg-red-500 hover:bg-red-600 px-3 py-1 rounded-lg"
-      >
-        Logout
-      </button>
-    </div>
-      {/* SLOT MACHINE */}
-      <div className="bg-zinc-800 border border-zinc-700 p-6 rounded-2xl shadow-2xl w-full max-w-md">
-      
 
-        {/* BALANCE */}
-        <div className="text-center text-xl font-bold mb-2">
-          💰 ${balance.toLocaleString()}
-        </div>
-       {/* Login Streak UI */}
-        <div className="text-xs text-blue-400 text-center mb-2">
-          📅 Login Streak: {loginStreak}
-        </div>
+          return updated;
+        });
+      }
+    } catch (err) {
+      console.error("Failed to open crate:", err);
+    }
+  }
 
-       {/* LEVEL + XP BAR */}
-        <div className="text-center text-sm text-zinc-400 mb-1">
-          Level {level}
-        </div>
+  async function logout() {
+    await fetch(`${API}/auth/logout`, {
+      method: "POST",
+      credentials: "include"
+    });
+    window.location.reload();
+  }
 
-        <div className="w-full bg-zinc-700 h-3 rounded-full overflow-hidden mb-2">
-          <div
-            className="bg-green-500 h-full transition-all duration-500"
-            style={{
-              width: `${Math.min((xp / (level * 100)) * 100, 100)}%`
-            }}
-          />
-        </div>
+  const tabs = [
+    { id: "deck", label: "🎴 Deck" },
+    { id: "inventory", label: "🧳 Inventory" },
+    { id: "store", label: "🛒 Store" }
+  ];
 
-        <div className="text-center text-xs text-zinc-500 mb-3">
-          {xp} / {level * 100} XP
-        </div>
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white">
+      <HudBar
+        balance={balance}
+        xp={xp}
+        level={level}
+        loginStreak={loginStreak}
+        onLogout={logout}
+      />
 
+    <div className="max-w-5xl mx-auto p-4 flex flex-col lg:flex-row gap-4 items-start">
+
+      {/* 🎰 GAME COLUMN */}
+      <main className="w-full max-w-md mx-auto lg:mx-0 shrink-0">
+      <div className="bg-zinc-800 border border-zinc-700 p-6 rounded-2xl shadow-2xl w-full">
 
 {/* 🎛️ STATS BAR */}
           <div className="bg-zinc-900/70 rounded-xl px-3 py-2 mb-3">
@@ -670,192 +672,64 @@ function rarityStyle(rarity) {
     </button>
   ))}
 </div></div>
+      </main>
 
-
-      
- {/* DECK */}
-    <div className="w-full max-w-md mt-4">
-      <button
-        onClick={() => setDeckMin(!deckMin)}
-        className="w-full bg-zinc-700 p-3 rounded-xl flex justify-between items-center"
-      >
-        <span>🎴 Deck</span>
-        <span>{deckMin ? "➕" : "➖"}</span>
-      </button>
-                
-      {!deckMin && (
-        <div className="bg-zinc-800 p-4 mt-2 rounded-xl min-h-[120px]">
-          <div className="flex gap-3 justify-center">
-            {deck.map((card, i) => {
-              const item = inventory.find((inv) => inv.id === card);
-
-              return (
-                <div
-                  key={i}
-
-                  draggable={!!card} // 👈 only draggable if card exists
-
-                  onDragStart={(e) => {
-                    validDropRef.current = false;
-                    e.currentTarget.classList.add("opacity-50"); // 👁️ visual
-                  }}
-
-                  onDragEnd={(e) => {
-                    e.currentTarget.classList.remove("opacity-50"); // 👁️ restore
-
-                    if (!validDropRef.current && card) {
-                      // ❌ dropped nowhere → remove
-                      setDeck(prev => {
-                        const newDeck = [...prev];
-                        newDeck[i] = null;
-                        return newDeck;
-                      });
-                    }
-                  }}
-
-                  onDragOver={(e) => e.preventDefault()}
-
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    validDropRef.current = true;
-
-                    const raw = e.dataTransfer.getData("card");
-                    if (!raw) return;
-
-                    const parsed = JSON.parse(raw);
-                    const cardId = parsed.id;
-
-                    setDeck((prev) => {
-                      const newDeck = [...prev];
-
-                      const simulated = [...newDeck];
-                      simulated[i] = cardId;
-
-                      const newCount = simulated.filter(c => c === cardId).length;
-
-                      const invItem = inventory.find(it => it.id === cardId);
-                      const maxAllowed = invItem?.count || 0;
-
-                      if (newCount > maxAllowed) {
-                        return prev;
-                      }
-
-                      return simulated;
-                    });
-                  }}
-
-                  onClick={() => {
-                    setDeck((prev) => {
-                      const newDeck = [...prev];
-                      newDeck[i] = null;
-                      return newDeck;
-                    });
-                  }}
-
-                  className={`w-24 h-32 rounded-xl border-2 flex flex-col justify-between p-2 
-                    cursor-pointer transition hover:scale-105
-                    ${
-                      card
-                        ? rarityStyle(item?.rarity)
-                        : "border-dashed border-zinc-600 bg-zinc-800"
-                    }`}
-                >
-                  {card ? (
-                    <>
-                      <div className="text-[10px] text-zinc-400 uppercase">
-                        {item?.rarity}
-                      </div>
-
-                      <div className="flex-1 flex items-center justify-center px-1">
-                        <div className="text-xs text-center font-bold break-words line-clamp-2">
-                          {card}
-                        </div>
-                      </div>
-
-                      <div className="text-[10px] text-center text-zinc-500">
-                        Slot {i + 1}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-zinc-500 text-xs">
-                      Drop Card
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+      {/* 🗂️ PANEL COLUMN */}
+      <aside className="w-full flex-1 min-w-0">
+        <div className="flex gap-2 mb-3">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 py-2 px-2 text-sm font-semibold rounded-xl transition
+                ${activeTab === tab.id
+                  ? "bg-zinc-700 text-white shadow-[0_0_10px_rgba(255,255,255,0.08)]"
+                  : "bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                }
+              `}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
-      )}
-    </div>
 
-      {/* INVENTORY */}
-   <div className="w-full max-w-md mt-3">
-      <button
-        onClick={() => setInventoryMin(!inventoryMin)}
-        className="w-full bg-zinc-700 p-3 rounded-xl flex justify-between items-center"
-      >
-        <span>🧳 Inventory</span>
-        <span>{inventoryMin ? "➕" : "➖"}</span>
-      </button>
+        {activeTab === "deck" && (
+          <DeckPanel deck={deck} inventory={inventory} setDeck={setDeck} />
+        )}
+        {activeTab === "inventory" && (
+          <InventoryPanel inventory={inventory} />
+        )}
+        {activeTab === "store" && (
+          <StorePanel
+            onUpgradeXP={upgradeXP}
+            onUpgradePayout={upgradePayout}
+            onOpenCrate={openCrate}
+          />
+        )}
+      </aside>
 
-      {!inventoryMin && (
-        <div className="bg-zinc-800 p-4 mt-2 rounded-xl min-h-[120px]">
-          {inventory.length === 0 ? (
-            <div className="text-zinc-500 text-center">No items</div>
-          ) : (
-            <div className="flex flex-wrap gap-3 justify-center">
-              {inventory.map((item, i) => (
-                <div
-                  key={i}
-                  draggable
-                  onDragStart={(e) =>
-                    e.dataTransfer.setData("card", JSON.stringify(item))
-                  }
-                  className={`w-20 h-24 rounded-xl border-2 bg-gradient-to-b 
-                    from-zinc-800 to-zinc-900 flex flex-col justify-between p-2 
-                    cursor-grab hover:scale-105 transition
-                    ${rarityStyle(item.rarity)}`}
-                >
-                  <div className="text-[10px] text-zinc-400 uppercase">
-                    {item.rarity}
-                  </div>
-
-                  <div className="text-[11px] text-center font-bold leading-tight break-words line-clamp-2">
-                    {item.id}
-                  </div>
-
-                  <div className="text-[10px] text-right text-zinc-400">
-                    x{item.count}
-                  </div>
-               </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
     </div>
 
     {/*  CRATE RESULTS */}
       {crateResult && (
-            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-              <div className="bg-zinc-900 border border-purple-500 p-6 rounded-2xl text-center shadow-2xl">
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+              <div className="bg-zinc-900 border border-purple-500 p-6 rounded-2xl text-center shadow-2xl w-full max-w-sm">
 
                 <div className="text-xl font-bold text-purple-400 mb-3">
                   🎁 Crate Rewards
                 </div>
 
-                <div className="space-y-1">
+                <div className="flex gap-3 justify-center mb-2">
                   {crateResult.map((r, i) => (
-                    <div key={i} className="text-green-400">
-                      + {r.id} x{r.amount || 1}
+                    <div key={i} className="w-24 h-32">
+                      <Card id={r.id} rarity={r.rarity} count={r.amount || 1} />
                     </div>
                   ))}
                 </div>
 
                 <button
                   onClick={() => setCrateResult(null)}
-                  className="mt-4 bg-purple-500 px-4 py-1 rounded-lg"
+                  className="mt-3 bg-purple-500 px-6 py-1.5 rounded-lg font-semibold"
                 >
                   Nice
                 </button>
@@ -921,110 +795,6 @@ function rarityStyle(rarity) {
         </div>
       </div>
     )}
-    <button
-  onClick={() => setStoreOpen(!storeOpen)}
-  className="w-full max-w-md bg-zinc-700 p-3 rounded-xl flex justify-between items-center mt-4"
->
-  <span>🛒 Store</span>
-  <span>{storeOpen ? "➖" : "➕"}</span>
-</button>
-
-{storeOpen && (
-  <div className="w-full max-w-md bg-zinc-800 p-4 mt-2 rounded-xl space-y-4">
-
-    {/* 💰 UPGRADES */}
-    <div>
-      <div className="text-sm text-zinc-400 mb-2">Upgrades</div>
-
-      <div className="flex gap-2">
-        
-        {/* ⚡ XP BOOST */}
-        <button
-          onClick={upgradeXP}
-          className="flex-1 bg-blue-500 hover:bg-blue-600 rounded-lg py-2 text-sm font-bold"
-        >
-          ⚡ XP Boost ($1000)
-        </button>
-
-        {/* 💰 PAYOUT BOOST */}
-        <button
-          onClick={upgradePayout}
-          className="flex-1 bg-green-500 hover:bg-green-600 rounded-lg py-2 text-sm font-bold"
-        >
-          💰 Payout Boost ($1000)
-        </button>
-
-      </div>
-    </div>
-
-    {/* 🎁 CRATES */}
-    <div>
-      <div className="text-sm text-zinc-400 mb-2">Crates</div>
-
-      <div className="flex gap-2">
-        {["basic", "premium", "elite"].map((type) => (
-          <button
-            key={type}
-            onClick={async () => {
-              const res = await fetch(`${API}/game/open-crate`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({ type })
-              });
-
-              const data = await res.json();
-
-              if (data.error) {
-                alert(data.error);
-                return;
-              } 
-
-              if (data.balance) setBalance(data.balance);
-
-              if (data.rewards) {
-                setCrateResult(data.rewards);
-                // 🔥 update inventory instantly
-                setInventory(prev => {
-                  const updated = [...prev];
-
-                  data.rewards.forEach(r => {
-                    const existing = updated.find(i => i.id === r.id);
-
-                    if (existing) {
-                      existing.count += r.amount || 1;
-                    } else {
-                      updated.push({
-                        id: r.id,
-                        count: r.amount || 1,
-                        rarity: r.rarity || "common"
-                      });
-                    }
-                  });
-
-                  return updated;
-                });
-              }
-            }}
-
-            className={`flex-1 py-2 rounded-lg text-sm font-bold
-              ${
-                type === "basic"
-                  ? "bg-zinc-600"
-                  : type === "premium"
-                  ? "bg-purple-600"
-                  : "bg-yellow-500 text-black"
-              }`}
-          >
-            {type.toUpperCase()}
-          </button>
-        ))}
-      </div>
-    </div>
-
-  </div>
-)}
-
     {/* 🔔 TOAST */}
     {toast && (
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-zinc-900 border border-zinc-600 text-sm text-white px-5 py-3 rounded-xl shadow-2xl z-50 animate-[pulse_0.3s_ease]">
