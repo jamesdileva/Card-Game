@@ -22,7 +22,6 @@
   },
   "homepage": "https://github.com/jamesdileva/Card-Game#readme",
   "dependencies": {
-    "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^13.0.3",
     "cors": "^2.8.6",

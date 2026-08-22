@@ -43,6 +43,41 @@ Notes:
 
 ## Changelog / History
 
+### 2026-08-22 — Sprint: auto-spin bug fixes + wild-pair payout + frontend hygiene
+
+Root causes found and fixed for both `notes.md` auto-spin bugs:
+
+- **`spinLock` was a render-local `let`** — recreated as `false` on every
+  render, so rapid clicks/auto-spin overlapped spins and racing responses
+  clobbered balance/payout. Now `spinLockRef` (useRef). Spin button disables
+  on `spinning` state alone.
+- **Auto-spin was a blind `setInterval`(800ms)** — replaced with chaining:
+  when the animation unlock timeout fires, it re-calls spin via
+  `spinFnRef.current()` if `autoSpinRef.current`. Toggling AUTO kicks one
+  spin from the effect via setTimeout(0) (satisfies react-hooks/set-state-
+  in-effect).
+- **Stats bar showed corrupted deck mult/XP/luck after event spins** —
+  backend applied random-event modifiers to the same `effects` object it
+  returned, so UI stats jumped (DOUBLE_XP doubled xpMult display, etc).
+  `/spin` now returns pure deck effects; events apply to an internal copy.
+- **Wild-pair synergy bonus now paid**: `computePayout` adds
+  `effects.bonusPayout` (+300 Wild Surge) on top of the chain, before
+  DOUBLE_PAYOUT doubling. Bonus alone does not count as a win for streaks.
+  Two new tests.
+- Frontend cleanup: removed duplicate set-deck save effect (was POSTing twice
+  per change); store upgrade buttons call named `upgradeXP`/`upgradePayout`
+  which now set `xpBoost`/`playerBoost` correctly instead of writing boosts
+  into `effects.payoutMult/xpMult`; built minimal toast UI (bottom-center,
+  2.5s auto-dismiss) that upgrades already fed via setToast; deleted dead
+  code (`handleSpinResult`, floatingWin/winFaded/spinningReels states,
+  inline store handler dupes); stripped frontend debug console.logs.
+- Backend cleanup: removed legacy `/buy-upgrade` route (`/upgrade/payout`
+  is the real one), dropped unused `bcrypt` dep.
+- Verified: 26 backend tests pass, `npm run lint` green (0 errors, 3
+  exhaustive-deps warnings remain), frontend builds, server boots.
+- Still open by design: `effects.luck` remains display-only until we do an
+  RNG/balance design pass.
+
 ### 2026-08-22 — Sprint: extract spin pipeline from routes (roadmap item 3)
 
 - Created `backend/game/effects.js`: `calculateDeckEffects` +

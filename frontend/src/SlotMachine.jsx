@@ -22,18 +22,18 @@ export default function SlotMachine() {
   const [storeOpen, setStoreOpen] = useState(false);
   const [playerBoost, setPlayerBoost] = useState(1);
   const [xpBoost, setXpBoost] = useState(1);
-  const [crateResult, setCrateResult] = useState(null);
-  const [toast, setToast] = useState(null);
+const [crateResult, setCrateResult] = useState(null);
+const [toast, setToast] = useState(null);
 const [streak, setStreak] = useState(0);
 const [loginStreak, setLoginStreak] = useState(0);
-const [floatingWin, setFloatingWin] = useState(null);
 const [spinning, setSpinning] = useState(false);
 const [winningIndices, setWinningIndices] = useState([]);
   const bet = 100;
-const [winFaded, setWinFaded] = useState(false);
-const [spinningReels, setSpinningReels] = useState([false, false, false, false, false]);
 const audioCtxRef = useRef(null);
 const validDropRef = useRef(false);
+const spinLockRef = useRef(false);
+const autoSpinRef = useRef(autoSpin);
+const spinFnRef = useRef(null);
 const API = import.meta.env.VITE_API_URL + "api";
 
 
@@ -111,7 +111,10 @@ const stopSpinSound = () => {
       spin.noise.disconnect();
       spin.lfo?.disconnect();
       spin.gain.disconnect();
-    } catch (e) {}
+    } catch {
+      spinSoundRef.current = null;
+      return;
+    }
 
     spinSoundRef.current = null; // 🔥 important
   }, 250);
@@ -167,10 +170,8 @@ async function upgradeXP() {
   }
 
   setBalance(data.balance);
-  setEffects(prev => ({
-    ...prev,
-    xpMult: data.xpBoost
-  }));
+  setXpBoost(data.xpBoost);
+  setToast("⚡ XP Boost upgraded!");
 }
 
 async function upgradePayout() {
@@ -187,10 +188,8 @@ async function upgradePayout() {
   }
 
   setBalance(data.balance);
-  setEffects(prev => ({
-    ...prev,
-    payoutMult: data.payoutBoost
-  }));
+  setPlayerBoost(data.payoutBoost);
+  setToast("💰 Payout Boost upgraded!");
 }
 
 function finishSpin(data) {
@@ -205,8 +204,6 @@ let spinInterval = setInterval(() => {
   ));
 }, 60); // speed of spin
 
-  setSpinningReels([true, true, true, true, true]);
-
   // ⏳ short spin time before stopping
   setTimeout(() => {
     clearInterval(spinInterval);
@@ -220,12 +217,6 @@ let spinInterval = setInterval(() => {
           }
           const updated = [...prev];
           updated[i] = symbol;
-          return updated;
-        });
-        
-        setSpinningReels(prev => {
-          const updated = [...prev];
-          updated[i] = false;
           return updated;
         });
 
@@ -265,33 +256,14 @@ let spinInterval = setInterval(() => {
 
   setTimeout(() => {
     setSpinning(false);
-    spinLock = false;
+    spinLockRef.current = false;
+    if (autoSpinRef.current) {
+      spinFnRef.current();
+    }
   }, totalSpinTime + 100);
 }
 
 
-function handleSpinResult(data) {
-  const finalReels = data.reels;
-
-  // clear first (optional flicker effect)
-  setReels(["?", "?", "?", "?", "?"]);
-
-  finalReels.forEach((symbol, i) => {
-    setTimeout(() => {
-      setReels(prev => {
-        const updated = [...prev];
-        updated[i] = symbol;
-        return updated;
-      });
-
-      // ✅ last reel = apply rewards + unlock
-      if (i === finalReels.length - 1) {
-        finishSpin(data);
-      }
-
-    }, i * 120); // 👈 speed control (60–120 feels good)
-  });
-}
 // DECK OPEN AND INVENTORY OPEN/CLOSED SETTINGS
 useEffect(() => {
   localStorage.setItem("deckMin", deckMin);
@@ -300,6 +272,12 @@ useEffect(() => {
 useEffect(() => {
   localStorage.setItem("inventoryMin", inventoryMin);
 }, [inventoryMin]);
+
+useEffect(() => {
+  if (!toast) return;
+  const t = setTimeout(() => setToast(null), 2500);
+  return () => clearTimeout(t);
+}, [toast]);
 
 function rarityStyle(rarity) {
   switch (rarity) {
@@ -340,8 +318,6 @@ function rarityStyle(rarity) {
 
               const data = await res.json();
 
-              console.log("🎮 STATE:", data);
-
               setBalance(data.balance || 0);
               setDeck(data.deck || []);
               setInventory(data.inventory || []); // ✅ HERE ONLY
@@ -368,10 +344,9 @@ function rarityStyle(rarity) {
         }, []);
 
 // SPIN
-        let spinLock = false;
         async function spin() {
-          if (spinLock) return; // 🔒 HARD LOCK
-          spinLock = true;
+          if (spinLockRef.current) return; // 🔒 HARD LOCK
+          spinLockRef.current = true;
 
           setSpinning(true);
 
@@ -383,7 +358,7 @@ function rarityStyle(rarity) {
               body: JSON.stringify({
                 bet: 100 * multiplier,
                 multiplier,
-                
+
               })
             });
 
@@ -391,7 +366,7 @@ function rarityStyle(rarity) {
 
             if (data.error) {
               console.error(data.error);
-              spinLock = false;
+              spinLockRef.current = false;
               setSpinning(false);
               return;
             }
@@ -401,30 +376,29 @@ function rarityStyle(rarity) {
 
           } catch (err) {
             console.error(err);
-            spinLock = false;
+            spinLockRef.current = false;
             setSpinning(false);
           }
         }
+        useEffect(() => {
+          spinFnRef.current = spin;
+        });
 
-  // AUTO SPIN
-  useEffect(() => {
-    if (!autoSpin) return;
+  // AUTO SPIN — chained: next spin fires when the previous one unlocks.
+        useEffect(() => {
+          autoSpinRef.current = autoSpin;
+          if (autoSpin && !spinLockRef.current && !spinning) {
+            const t = setTimeout(() => spinFnRef.current(), 0);
+            return () => clearTimeout(t);
+          }
+        }, [autoSpin]);
 
-    const interval = setInterval(() => {
-      spin();
-    }, 800);
-
-    return () => clearInterval(interval);
-  }, [autoSpin, multiplier]);
-
-  // SET DECK 
-   useEffect(() => {
+  // SET DECK
+    useEffect(() => {
       if (!deck || deck.length !== 3) return;
 
       // 🚫 prevent saving empty deck on load
       if (deck.every(c => c === null)) return;
-
-      console.log("💾 SAVING DECK:", deck);
 
       fetch(`${API}/game/set-deck`, {
         method: "POST",
@@ -434,28 +408,6 @@ function rarityStyle(rarity) {
       });
 
     }, [deck]);
-    useEffect(() => {
-      
-  async function saveDeck() {
-    try {
-      console.log("💾 SAVING DECK:", deck);
-
-      await fetch(`${API}/game/set-deck`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          newDeck: deck
-        })
-      });
-
-    } catch (err) {
-      console.error("Failed to save deck:", err);
-    }
-  }
-
-  saveDeck();
-}, [deck]);
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white flex flex-col items-center p-6">
     
@@ -673,7 +625,7 @@ function rarityStyle(rarity) {
     {/* 🎰 SPIN */}
     <button
       onClick={spin}
-      disabled={spinning || spinLock}
+      disabled={spinning}
       className={`w-36 py-2 text-sm font-bold rounded-xl transition-all
         ${spinning
           ? "bg-zinc-600 cursor-not-allowed"
@@ -785,7 +737,6 @@ function rarityStyle(rarity) {
                       const maxAllowed = invItem?.count || 0;
 
                       if (newCount > maxAllowed) {
-                        console.log(`❌ Only ${maxAllowed} allowed`);
                         return prev;
                       }
 
@@ -989,29 +940,7 @@ function rarityStyle(rarity) {
         
         {/* ⚡ XP BOOST */}
         <button
-          onClick={async () => {
-            const res = await fetch(`${API}/game/upgrade/xp`, {
-              method: "POST",
-              credentials: "include"
-            });
-
-            const data = await res.json();
-
-            if (data.error) {
-              alert(data.error);
-              return;
-            }
-
-            // ✅ update everything consistently
-            setBalance(data.balance);
-            setXpBoost(data.xpBoost);
-            setToast("⚡ XP Boost upgraded!");
-
-            setEffects(prev => ({
-              ...prev,
-              xpMult: data.xpBoost
-            }));
-          }}
+          onClick={upgradeXP}
           className="flex-1 bg-blue-500 hover:bg-blue-600 rounded-lg py-2 text-sm font-bold"
         >
           ⚡ XP Boost ($1000)
@@ -1019,28 +948,7 @@ function rarityStyle(rarity) {
 
         {/* 💰 PAYOUT BOOST */}
         <button
-          onClick={async () => {
-            const res = await fetch(`${API}/game/upgrade/payout`, {
-              method: "POST",
-              credentials: "include"
-            });
-
-            const data = await res.json();
-
-            if (data.error) {
-              alert(data.error);
-              return;
-            }
-
-            // ✅ update everything consistently
-            setBalance(data.balance);
-            setPlayerBoost(data.payoutBoost);
-            setToast("💰 Payout Boost upgraded!");
-            setEffects(prev => ({
-              ...prev,
-              payoutMult: data.payoutBoost
-            }));
-          }}
+          onClick={upgradePayout}
           className="flex-1 bg-green-500 hover:bg-green-600 rounded-lg py-2 text-sm font-bold"
         >
           💰 Payout Boost ($1000)
@@ -1074,9 +982,8 @@ function rarityStyle(rarity) {
 
               if (data.balance) setBalance(data.balance);
 
-                          if (data.rewards) {
+              if (data.rewards) {
                 setCrateResult(data.rewards);
-                console.log("🎁 Rewards:", data.rewards);              
                 // 🔥 update inventory instantly
                 setInventory(prev => {
                   const updated = [...prev];
@@ -1117,6 +1024,13 @@ function rarityStyle(rarity) {
 
   </div>
 )}
+
+    {/* 🔔 TOAST */}
+    {toast && (
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-zinc-900 border border-zinc-600 text-sm text-white px-5 py-3 rounded-xl shadow-2xl z-50 animate-[pulse_0.3s_ease]">
+        {toast}
+      </div>
+    )}
 
   </div>
   

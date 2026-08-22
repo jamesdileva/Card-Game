@@ -223,6 +223,32 @@ describe("game/spin — payout chain", () => {
     // 1050 × 2
     assert.strictEqual(finalPayout, 2100);
   });
+
+  test("synergy bonus payout is paid on top of the chain", () => {
+    const { finalPayout } = computePayout({
+      bet: 100,
+      basePayout: 1000,
+      winStreak: 0,
+      event: null,
+      effects: { payoutMult: 1, bonusPayout: 300 },
+      playerBoost: 1
+    });
+    // 1050 after streak + 300 flat
+    assert.strictEqual(finalPayout, 1350);
+  });
+
+  test("bonus payout alone does not count as a win for streaks", () => {
+    const { finalPayout, newStreak } = computePayout({
+      bet: 100,
+      basePayout: 0,
+      winStreak: 5,
+      event: null,
+      effects: { payoutMult: 1, bonusPayout: 300 },
+      playerBoost: 1
+    });
+    assert.strictEqual(finalPayout, 300);
+    assert.strictEqual(newStreak, 0); // reels lost → streak resets
+  });
 });
 
 describe("game/spin — XP & levels", () => {

@@ -93,6 +93,12 @@ function computePayout({ bet, basePayout, effects, playerBoost, winStreak, event
 
   let finalPayout = Math.floor(boostedPayout * streakBonus);
 
+  // Flat synergy bonuses (e.g. Wild Surge) pay on top of everything.
+  // Streak/win status is still decided by the reels above, not this bonus.
+  if (effects.bonusPayout) {
+    finalPayout += effects.bonusPayout;
+  }
+
   if (event?.type === "DOUBLE_PAYOUT") {
     finalPayout = Math.floor(finalPayout * event.mult);
   }

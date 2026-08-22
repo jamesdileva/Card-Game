@@ -331,17 +331,20 @@ router.post("/spin", async (req, res) => {
   const effects = calculateDeckEffects(deck);
   calculateSynergies(deck, effects);
 
-  // --- ⚡ RANDOM EVENT (modifies effects before the roll) ---
-  const event = applyEventToEffects(rollRandomEvent(), effects);
+  // --- ⚡ RANDOM EVENT ---
+  // Events must NOT mutate `effects` — the response returns the pure deck
+  // effects so the UI stats bar stays stable. Math happens on a copy.
+  const event = rollRandomEvent();
+  const spinEffects = applyEventToEffects(event, { ...effects });
 
   // --- 🎰 ROLL REELS (+ deck reroll chance) ---
-  const { reels, payout: basePayout } = rollSpin(effects);
+  const { reels, payout: basePayout } = rollSpin(spinEffects);
 
-  // --- 💰 PAYOUT CHAIN (bet → deck → boost → streak → event) ---
+  // --- 💰 PAYOUT CHAIN (bet → deck → boost → streak → bonus → event) ---
   const { finalPayout, newStreak } = computePayout({
     bet,
     basePayout,
-    effects,
+    effects: spinEffects,
     playerBoost: user.payout_boost,
     winStreak: user.win_streak,
     event
@@ -350,7 +353,7 @@ router.post("/spin", async (req, res) => {
   const newBalance = user.balance - bet + finalPayout;
 
   // --- ⭐ XP + LEVELS ---
-  const xpGain = computeXP(basePayout, effects.xpMult, user.xp_boost);
+  const xpGain = computeXP(basePayout, spinEffects.xpMult, user.xp_boost);
   const { newXP, newLevel, levelRewards, totalLevelReward } = applyLevels({
     xp: user.xp,
     level: user.level,
@@ -465,32 +468,6 @@ router.get("/progression", async (req, res) => {
   res.json({
     xp: player.xp,
     level: player.level,
-    payoutBoost: player.payout_boost
-  });
-});
-
-router.post("/buy-upgrade", async (req, res) => {
-  const userId = req.session.userId;
-
-  const player = db
-    .prepare("SELECT balance, payout_boost FROM users WHERE id=?")
-    .get(userId);
-
-  const cost = 1000;
-
-  if (player.balance < cost) {
-    return res.json({ error: "Not enough money" });
-  }
-
-  player.balance -= cost;
-  player.payout_boost += 0.1;
-
-  db.prepare(
-    "UPDATE users SET balance=?, payout_boost=? WHERE id=?"
-  ).run(player.balance, player.payout_boost, userId);
-
-  res.json({
-    balance: player.balance,
     payoutBoost: player.payout_boost
   });
 });

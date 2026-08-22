@@ -17,9 +17,13 @@ Items marked ✅ are done.
 ## Track 1 — Debt & Fixes
 
 ### In progress / known bugs
-- [ ] Auto-spin doesn't update deck multiplier on stats display
-- [ ] Auto-spin doesn't update payout correctly when using buttons
-  (from `frontend/src/notes.md`)
+- [x] Auto-spin doesn't update deck multiplier on stats display
+      (root cause: spin response returned event-mutated effects; backend now
+      returns pure deck effects, events applied to an internal copy)
+- [x] Auto-spin doesn't update payout correctly when using buttons
+      (root cause: `spinLock` was a render-local `let` — recreated every
+      render, so no real lock. Now a `useRef`, and auto-spin chains after
+      animation unlock instead of a blind 800ms interval)
 - [x] Add `POST /api/auth/logout` route (destroys session, clears cookie)
 
 ### Security & hygiene
@@ -32,18 +36,20 @@ Items marked ✅ are done.
 - [ ] Add input validation on POST bodies
 
 ### Code health
-- [ ] Fix pre-existing frontend lint errors in `SlotMachine.jsx` (12 errors:
-      unused state vars — toast/floatingWin/winFaded/spinningReels/upgradeXP/
-      upgradePayout/handleSpinResult, empty catch block, `spinLock` reassign
-      flagged by react-hooks/immutability) — `npm run lint` currently fails
+- [x] Fix pre-existing frontend lint errors in `SlotMachine.jsx` —
+      `npm run lint` is green (0 errors; 3 exhaustive-deps warnings remain)
 - [x] Deduplicate logic: spin pipeline extracted into `backend/game/effects.js`
       (deck effects + synergies) and `backend/game/spin.js` (reels, events,
       payout chain, XP/levels); routes are thin handlers now. Dead modules
       `game/slot.js`/`game/crate.js` deleted. Pipeline unit-tested in
       `backend/test/pipeline.test.js`
-- [ ] Remove legacy duplicate routes (`/buy-upgrade` vs `/upgrade/*`)
-- [ ] Drop unused deps: `bcrypt` (keep bcryptjs), frontend `cors`;
-      rename `erroHandler.js` typo (done — file removed in legacy cleanup)
+- [x] Remove legacy duplicate route `/buy-upgrade` (`/upgrade/payout` remains)
+- [x] Drop unused deps: `bcrypt` removed from backend package.json;
+      frontend `cors` still to remove
+- [x] Wild-pair synergy `bonusPayout` (+300) now actually paid out by
+      `computePayout` (flat, on top of chain; does not count as a win for
+      streaks). `effects.luck` deliberately still display-only — needs a
+      design pass before it touches RNG
 - [ ] Fix mojibake/corrupted comments in a few files (`Login.jsx`, etc.)
 - [x] Remove legacy root-level prototype files (app.js, index.html,
       style.css, public/, src/middleware/) — done during docs rewrite
