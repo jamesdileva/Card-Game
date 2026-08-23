@@ -43,6 +43,27 @@ Notes:
 
 ## Changelog / History
 
+### 2026-08-22 — Sprint: Sentinel coverage expansion + test top-ups
+
+- **Sentinel (external repo, `C:\Users\j\Projects\Sentinel`) now covers the
+  full game** — commit `93de4c7` there:
+  - Tier-1 smoke drives the HTTP API end-to-end (register/login → spin →
+    coinflip → highlow start+guess → basic crate → rejection paths)
+  - Click-through features grew 1 → 4: slots spin, Coin Flip round,
+    Hi-Lo round, BASIC crate opening with reveal modal
+  - Balance locator fixed for the HUD layout pass via our new
+    `[data-testid="balance"]` hook in HudBar.jsx — keep that attribute when
+    touching the HUD
+- **Two integration gotchas from app-side changes:** auth validation rejects
+  hyphens and >20-char usernames, so Sentinel throwaway accounts became
+  `tester_<ns%10^9>`; shared-page dialog listeners in Playwright must be
+  idempotent across features
+- Card-game tests: corruption rate band (~35%) + standard crates never emit
+  corrupted rewards — **80 backend tests passing**
+- Verified: full E2E against dev servers (API block + 4 features, non-blank
+  screenshots), Sentinel lint gate (black/isort/flake8 @100) clean,
+  test_testers.py 40 passed; card-game lint/build green
+
 ### 2026-08-22 — Sprint: corruption on cards + card effect tooltips
 
 - **Corrupted variants:** rewards from corrupted crates roll `corrupted:
