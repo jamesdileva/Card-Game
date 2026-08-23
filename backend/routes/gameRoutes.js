@@ -36,9 +36,15 @@ const {
 function insertReward(userId, reward, mutation = 1) {
   return db
     .prepare(
-      "INSERT INTO inventory (user_id, card_id, rarity, mutation) VALUES (?,?,?,?) RETURNING card_id AS id, rarity"
+      "INSERT INTO inventory (user_id, card_id, rarity, mutation, corrupted) VALUES (?,?,?,?,?) RETURNING card_id AS id, rarity, corrupted"
     )
-    .get(userId, reward.id, reward.rarity || "common", mutation);
+    .get(
+      userId,
+      reward.id,
+      reward.rarity || "common",
+      mutation,
+      reward.corrupted ? 1 : 0
+    );
 }
 
 // Highest mutation per card id for a user's evolved cards. A mutated copy
@@ -52,6 +58,16 @@ function getMutationMap(userId) {
   const map = {};
   rows.forEach((r) => { map[r.card_id] = r.m; });
   return map;
+}
+
+// Card ids for which the player owns at least one corrupted copy.
+function getCorruptedSet(userId) {
+  const rows = db
+    .prepare(
+      "SELECT DISTINCT card_id FROM inventory WHERE user_id=? AND corrupted = 1"
+    )
+    .all(userId);
+  return new Set(rows.map((r) => r.card_id));
 }
 
 // --- HELPER ---
@@ -97,7 +113,7 @@ router.get("/state", async (req, res) => {
 
   // ✅ INVENTORY
   const invResult = db
-    .prepare("SELECT card_id, rarity, mutation FROM inventory WHERE user_id=?")
+    .prepare("SELECT card_id, rarity, mutation, MAX(corrupted) AS corrupted FROM inventory WHERE user_id=?")
     .all(req.session.userId);
 
   const stacked = {};
@@ -110,11 +126,14 @@ router.get("/state", async (req, res) => {
         id,
         rarity: c.rarity || "common",
         count: 1,
-        mutation: c.mutation || 1
+        mutation: c.mutation || 1,
+        corrupted: !!c.corrupted
       };
     } else {
       stacked[id].count++;
       stacked[id].mutation = Math.max(stacked[id].mutation, c.mutation || 1);
+      stacked[id].corrupted = stacked[id].corrupted || !!c.corrupted;
+      stacked[id].corrupted = stacked[id].corrupted || !!c.corrupted;
     }
   });
 
@@ -135,7 +154,7 @@ router.get("/state", async (req, res) => {
   });
 
   // ✅ EFFECTS
-  const effects = calculateDeckEffects(deck, getMutationMap(req.session.userId));
+  const effects = calculateDeckEffects(deck, getMutationMap(req.session.userId), getCorruptedSet(req.session.userId));
   calculateSynergies(deck, effects);
 
   // ✅ RESPONSE
@@ -159,7 +178,7 @@ router.get("/inventory", async (req, res) => {
   if (!(await requireLogin(req, res))) return;
 
   const result = db
-    .prepare("SELECT card_id, rarity, mutation FROM inventory WHERE user_id=?")
+    .prepare("SELECT card_id, rarity, mutation, MAX(corrupted) AS corrupted FROM inventory WHERE user_id=?")
     .all(req.session.userId);
 
   const stacked = {};
@@ -172,11 +191,14 @@ router.get("/inventory", async (req, res) => {
         id,
         rarity: c.rarity || "common",
         count: 1,
-        mutation: c.mutation || 1
+        mutation: c.mutation || 1,
+        corrupted: !!c.corrupted
       };
     } else {
       stacked[id].count++;
       stacked[id].mutation = Math.max(stacked[id].mutation, c.mutation || 1);
+      stacked[id].corrupted = stacked[id].corrupted || !!c.corrupted;
+      stacked[id].corrupted = stacked[id].corrupted || !!c.corrupted;
     }
   });
 
@@ -396,7 +418,7 @@ router.post("/spin", async (req, res) => {
   }
 
   // --- 🎴 DECK EFFECTS + SYNERGIES ---
-  const effects = calculateDeckEffects(deck, getMutationMap(req.session.userId));
+  const effects = calculateDeckEffects(deck, getMutationMap(req.session.userId), getCorruptedSet(req.session.userId));
   calculateSynergies(deck, effects);
 
   // --- ⚡ RANDOM EVENT ---
@@ -532,7 +554,7 @@ router.post("/coinflip", async (req, res) => {
     deck[row.slot] = row.card_id;
   });
 
-  const effects = calculateDeckEffects(deck, getMutationMap(req.session.userId));
+  const effects = calculateDeckEffects(deck, getMutationMap(req.session.userId), getCorruptedSet(req.session.userId));
   calculateSynergies(deck, effects);
 
   const { flip, win, payout, newStreak } = playCoinflip({
@@ -639,7 +661,7 @@ router.post("/highlow", async (req, res) => {
       deck[row.slot] = row.card_id;
     });
 
-    const effects = calculateDeckEffects(deck, getMutationMap(req.session.userId));
+    const effects = calculateDeckEffects(deck, getMutationMap(req.session.userId), getCorruptedSet(req.session.userId));
     calculateSynergies(deck, effects);
 
     const outcome = playHilo({

@@ -19,18 +19,15 @@ export default function InventoryPanel({ inventory, onEvolve }) {
                   onDragStart={(e) =>
                     e.dataTransfer.setData("card", JSON.stringify(item))
                   }
-                  className="relative w-full aspect-[5/7] cursor-grab hover:scale-105 transition"
+                  className="w-full aspect-[5/7] cursor-grab hover:scale-105 transition"
                 >
-                  <Card id={item.id} rarity={item.rarity} count={item.count} />
-                  {item.mutation > 1 && (
-                    <span
-                      title={`Mutation: +${Math.round((item.mutation - 1) * 100)}% effect strength`}
-                      className="absolute -top-1.5 -left-1.5 bg-purple-500 text-white text-[9px]
-                        font-bold rounded-full px-1 h-4 flex items-center z-10"
-                    >
-                      ✦{Math.round((item.mutation - 1) * 100)}%
-                    </span>
-                  )}
+                  <Card
+                    id={item.id}
+                    rarity={item.rarity}
+                    count={item.count}
+                    mutation={item.mutation}
+                    corrupted={item.corrupted}
+                  />
                 </div>
                 {evolvable && (
                   <button

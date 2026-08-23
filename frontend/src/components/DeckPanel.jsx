@@ -49,10 +49,10 @@ export default function DeckPanel({ deck, inventory, setDeck, setToast }) {
             const item = inventory.find((inv) => inv.id === card);
 
             return (
-            <div
-              key={i}
-              className="relative w-24"
-              draggable={!!card}
+              <div
+                key={i}
+                className="relative w-24"
+                draggable={!!card}
                 onDragStart={(e) => {
                   validDropRef.current = false;
                   e.currentTarget.classList.add("opacity-50");
@@ -91,24 +91,20 @@ export default function DeckPanel({ deck, inventory, setDeck, setToast }) {
                 }}
                 onClick={() => card && removeFromSlot(i)}
               >
-              <div className="h-32">
-                {card ? (
-                  <Card id={card} rarity={item?.rarity} />
-                ) : (
-                  <div className="w-full h-full rounded-xl border-2 border-dashed border-zinc-600 bg-zinc-800 flex items-center justify-center text-zinc-500 text-xs">
-                    Drop Card
-                  </div>
-                )}
-                {item?.mutation > 1 && (
-                  <span
-                    title={`Mutation: +${Math.round((item.mutation - 1) * 100)}% effect strength`}
-                    className="absolute -top-1.5 -left-1.5 bg-purple-500 text-white text-[9px]
-                      font-bold rounded-full px-1 h-4 flex items-center z-10"
-                  >
-                    ✦{Math.round((item.mutation - 1) * 100)}%
-                  </span>
-                )}
-              </div>
+                <div className="h-32">
+                  {card ? (
+                    <Card
+                      id={card}
+                      rarity={item?.rarity}
+                      mutation={item?.mutation}
+                      corrupted={item?.corrupted}
+                    />
+                  ) : (
+                    <div className="w-full h-full rounded-xl border-2 border-dashed border-zinc-600 bg-zinc-800 flex items-center justify-center text-zinc-500 text-xs">
+                      Drop Card
+                    </div>
+                  )}
+                </div>
                 <div className="text-[9px] text-center text-zinc-500 mt-1">
                   Slot {i + 1}
                 </div>
@@ -118,7 +114,7 @@ export default function DeckPanel({ deck, inventory, setDeck, setToast }) {
         </div>
         <div className="text-[10px] text-zinc-500 text-center mt-2">
           Click a card below to equip it, or drag onto a slot. Click an
-          equipped card to remove it.
+          equipped card to remove it. Hover any card to see its effect.
         </div>
       </div>
 
@@ -147,7 +143,13 @@ export default function DeckPanel({ deck, inventory, setDeck, setToast }) {
                     exhausted ? "opacity-40" : ""
                   }`}
                 >
-                  <Card id={item.id} rarity={item.rarity} count={item.count} />
+                  <Card
+                    id={item.id}
+                    rarity={item.rarity}
+                    count={item.count}
+                    mutation={item.mutation}
+                    corrupted={item.corrupted}
+                  />
                   {inDeck > 0 && (
                     <span
                       className="absolute -top-1.5 -right-1.5 bg-green-500 text-black text-[9px]

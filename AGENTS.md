@@ -43,6 +43,28 @@ Notes:
 
 ## Changelog / History
 
+### 2026-08-22 — Sprint: corruption on cards + card effect tooltips
+
+- **Corrupted variants:** rewards from corrupted crates roll `corrupted:
+  true` at 35% (`CORRUPTION_CHANCE` in crates.js); persisted via
+  `inventory.corrupted` column (migration). Equipping a corrupted id
+  amplifies its per-card contributions ×2 (combined mutation×corruption
+  factor capped ×4) while each corrupted deck slot taxes XP −15%
+  (floored ×0.5). `getCorruptedSet(userId)` wired into /state, /spin,
+  /coinflip, /highlow next to the mutation map. Safety Net refund also
+  amplifies now but is capped independently (×0.4).
+- **Card tooltips:** `Card.jsx` renders a native hover title with name +
+  plain-English effect (new `CARD_EFFECTS` map in cardNames.js) +
+  mutation/corruption notes; ✦ and ☠️ badges moved INTO Card so deck slots,
+  inventory, and crate reveals all get them consistently. Corrupted cards
+  show a red ring.
+- Tests: 78 backend tests passing (corruption amp/penalty/cap suites).
+- Live smoke: corrupted mythic_multiplier equipped → payoutMult ×5,
+  xpMult 0.85 through /state; inventory carries `corrupted: true`.
+- Gotcha: refactoring `rollCorruptedRewards` to mark corruption initially
+  returned the trash-tier reward as a bare object instead of an array —
+  caught by existing tier tests.
+
 ### 2026-08-22 — Sprint: archetype synergies + card mutations
 
 - **Five new synergies** in `effects.js` for archetype identity:

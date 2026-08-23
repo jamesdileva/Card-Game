@@ -44,6 +44,10 @@ const CRATE_TYPES = {
 
 const TIMED_UNLOCK_SECONDS = 120;
 
+// Chance a reward pulled from a CORRUPTED crate is the corrupted variant
+// of the card (×2 effect, −XP penalty while equipped).
+const CORRUPTION_CHANCE = 0.35;
+
 function pickRarity(pool) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
@@ -57,14 +61,18 @@ function pickCardOfRarity(rarity) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-// Corrupted tiers: trash 30% / high tier 50% / insane 20%.
+// Corrupted tiers: trash 30% / high tier 50% / insane 20%. Any reward from
+// this crate may be a corrupted variant of the card.
 function rollCorruptedRewards(picks) {
+  const mark = (r) =>
+    Math.random() < CORRUPTION_CHANCE ? { ...r, corrupted: true } : r;
+
   const roll = Math.random();
 
   if (roll < 0.3) {
     // trash: a single common, regardless of picks
     const card = pickCardOfRarity("common");
-    return [{ id: card.id, rarity: card.rarity }];
+    return [mark({ id: card.id, rarity: card.rarity })];
   }
 
   if (roll < 0.8) {
@@ -72,7 +80,7 @@ function rollCorruptedRewards(picks) {
     const rewards = [];
     for (let i = 0; i < picks; i++) {
       const card = pickCardOfRarity(Math.random() < 0.6 ? "rare" : "epic");
-      rewards.push({ id: card.id, rarity: card.rarity });
+      rewards.push(mark({ id: card.id, rarity: card.rarity }));
     }
     return rewards;
   }
@@ -81,12 +89,13 @@ function rollCorruptedRewards(picks) {
   const rewards = [];
   for (let i = 0; i < picks; i++) {
     const card = pickCardOfRarity("legendary");
-    rewards.push({ id: card.id, rarity: card.rarity });
+    rewards.push(mark({ id: card.id, rarity: card.rarity }));
   }
   return rewards;
 }
 
-// Roll the base rewards for one crate of `type`.
+// Roll the base rewards for one crate of `type`. Rewards from corrupted
+// crates can come back as corrupted variants.
 function rollRewards(type) {
   const def = CRATE_TYPES[type];
   if (!def) return [];
@@ -128,6 +137,7 @@ function openCrate(type) {
 module.exports = {
   CRATE_TYPES,
   TIMED_UNLOCK_SECONDS,
+  CORRUPTION_CHANCE,
   openCrate,
   rollRewards,
   rollCorruptedRewards

@@ -45,6 +45,14 @@ that card id* used in any deck by its mutation factor. Synergies stack on
 top — including archetype sets (Safety Inspector 🛡️, Surge Rider 🔥,
 Vault Buster 💰, Chaos Engine 🌪️, Steady Burn 🧯).
 
+### Corruption on cards
+
+Rewards pulled from **Corrupted Crates** have a 35% chance to be the
+corrupted variant of a card (`corrupted: true` in rewards/inventory).
+Equipping a corrupted id amplifies its effect contribution ×2 (combined
+mutation×corruption factor capped at ×4) but each corrupted deck slot costs
+−15% XP gains (floored at ×0.5).
+
 ### Spin bonus drops
 
 Every `/spin` rolls a drop (10% base chance; Lucky Charm in deck raises it

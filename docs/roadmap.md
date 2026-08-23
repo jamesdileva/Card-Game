@@ -137,7 +137,10 @@ Items marked ✅ are done.
 - [x] Build archetypes: synergy expansion gives decks identity
       (Safety Inspector 🛡️ / Surge Rider 🔥 / Vault Buster 💰 / Chaos
       Engine 🌪️ / Steady Burn 🧯 alongside the original sets)
-- [ ] Corruption system on cards (variant plumbing now exists via mutations)
+- [x] Corruption system on cards — corrupted-crate pulls can be corrupted
+      variants (35%): ×2 effect (capped ×4 with mutation) at −15% XP per
+      corrupted slot; ☠ badges + red ring in UI; hover tooltips explain all
+      card effects
 - [x] Card evolution: merge 3 duplicates → random card of next rarity
       (`/api/game/evolve`, ✨ buttons in Inventory tab; legendary is terminal)
 - [x] Mutations: evolved cards roll ✦5–25% effect strength; a mutated copy

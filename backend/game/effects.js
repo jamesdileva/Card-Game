@@ -2,7 +2,7 @@
 // Extracted verbatim from routes/gameRoutes.js so the spin pipeline can be
 // unit-tested directly.
 
-function calculateDeckEffects(deck, mutations = {}) {
+function calculateDeckEffects(deck, mutations = {}, corruptedSet = new Set()) {
   const effects = {
     payoutMult: 1,
     xpMult: 1,
@@ -17,49 +17,69 @@ function calculateDeckEffects(deck, mutations = {}) {
   // copy of that card id in the deck counts `mutation`× stronger.
   const mut = (id) => mutations[id] || 1;
 
+  // Corrupted cards (from corrupted crates): ×2 effect amplification, but
+  // each corrupted slot costs XP gains. Combined factor is capped at ×4.
+  let corruptedSlots = 0;
+  const factor = (id) => {
+    if (!corruptedSet.has(id)) return mut(id);
+    return Math.min(mut(id) * 2, 4);
+  };
+
   deck.forEach(cardId => {
+    const f = factor(cardId);
+
     switch (cardId) {
       case "lucky_charm":
-        effects.luck += 0.1 * mut(cardId);
+        effects.luck += 0.1 * f;
         break;
 
       case "reroll":
-        effects.rerollChance += 0.25 * mut(cardId);
+        effects.rerollChance += 0.25 * f;
         break;
 
       case "double_down":
-        effects.payoutMult += 0.5 * mut(cardId);
+        effects.payoutMult += 0.5 * f;
         break;
 
       case "jackpot_boost":
-        effects.payoutMult += 1.0 * mut(cardId);
+        effects.payoutMult += 1.0 * f;
         break;
 
       case "wild_symbol":
-        effects.luck += 0.3 * mut(cardId);
+        effects.luck += 0.3 * f;
         break;
 
       case "multiplier_chain":
-        effects.payoutMult += 0.2 * mut(cardId);
+        effects.payoutMult += 0.2 * f;
         break;
 
       case "mythic_multiplier":
-        effects.payoutMult += 2.0 * mut(cardId);
+        effects.payoutMult += 2.0 * f;
         break;
 
       case "safety_net":
-        effects.safetyNetRefund += 0.2 * mut(cardId);
+        effects.safetyNetRefund += Math.min(0.2 * f, 0.4);
         break;
 
       case "hot_streak":
-        effects.streakBonusRate += 0.02 * mut(cardId);
+        effects.streakBonusRate += 0.02 * f;
         break;
 
       case "jackpot_surge":
-        effects.jackpotSurge += 0.03 * mut(cardId);
+        effects.jackpotSurge = Math.min(
+          effects.jackpotSurge + 0.03 * f,
+          0.15
+        );
         break;
     }
+
+    if (cardId && corruptedSet.has(cardId)) corruptedSlots++;
   });
+
+  // Corruption's price: −15% XP per corrupted deck slot (floored at half).
+  if (corruptedSlots > 0) {
+    effects.xpMult *= Math.max(1 - corruptedSlots * 0.15, 0.5);
+  }
 
   return effects;
 }

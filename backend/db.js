@@ -23,5 +23,6 @@ function ensureColumn(table, column, definition) {
 
 ensureColumn("users", "pending_crate", "TEXT DEFAULT NULL");
 ensureColumn("inventory", "mutation", "REAL DEFAULT 1.0");
+ensureColumn("inventory", "corrupted", "INTEGER DEFAULT 0");
 
 module.exports = db;

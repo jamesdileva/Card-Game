@@ -325,6 +325,54 @@ describe("game/spin — payout chain", () => {
     assert.ok(Math.abs(vault.payoutMult - 3) < 1e-9);
   });
 
+  test("corrupted cards amplify effects x2 but tax XP", () => {
+    const corrupted = new Set(["double_down"]);
+    const e = calculateDeckEffects(
+      ["double_down", null, null],
+      {},
+      corrupted
+    );
+    // +0.5 base ×2 amplification
+    assert.strictEqual(e.payoutMult, 2);
+    // −15% XP for one corrupted slot
+    assert.strictEqual(e.xpMult, 0.85);
+  });
+
+  test("corruption stacks with mutation and respects the x4 cap", () => {
+    const corrupted = new Set(["mythic_multiplier"]);
+    const amplified = calculateDeckEffects(
+      ["mythic_multiplier", null, null],
+      { mythic_multiplier: 1.3 },
+      corrupted
+    );
+    // +2.0 × (1.3 mutation × 2 corruption) = ×2.6 → +5.2
+    assert.ok(Math.abs(amplified.payoutMult - 6.2) < 1e-9);
+
+    const capped = calculateDeckEffects(
+      ["mythic_multiplier", null, null],
+      { mythic_multiplier: 2.5 }, // combined would be ×5 → capped at ×4
+      corrupted
+    );
+    assert.strictEqual(capped.payoutMult, 9); // +8
+  });
+
+  test("XP penalty floors at half and only counts corrupted slots", () => {
+    const e = calculateDeckEffects(
+      ["double_down", "double_down", "double_down"],
+      {},
+      new Set(["double_down"])
+    );
+    // one corrupted id, three slots → −45%, floored at −50%... 3 slots: 1−0.45=0.55
+    assert.strictEqual(e.xpMult, 0.55);
+
+    const clean = calculateDeckEffects(
+      ["double_down", "reroll", "lucky_charm"],
+      {},
+      new Set(["mythic_multiplier"]) // corrupted card NOT in deck
+    );
+    assert.strictEqual(clean.xpMult, 1); // no penalty if not equipped
+  });
+
   test("Safety Net does not pay on winning spins", () => {
     const { finalPayout } = computePayout({
       bet: 100,

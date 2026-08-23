@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS inventory (
   user_id INTEGER,
   card_id TEXT,
   rarity TEXT,
-  mutation REAL DEFAULT 1.0
+  mutation REAL DEFAULT 1.0,
+  corrupted INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS deck (
