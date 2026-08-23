@@ -134,11 +134,15 @@ Items marked ✅ are done.
       original concepts (Sticky Symbols, Bonus Reel, Glitch Engine, Reel
       Bias, Loss Streak Saver) need reel-level rewrite mechanics — future
       work if wanted; balance tuning is ongoing via play
-- [ ] Build archetypes emerge naturally (High Roller / Safe Grinder / Chaos / Combo)
-- [ ] Corruption system on cards
+- [x] Build archetypes: synergy expansion gives decks identity
+      (Safety Inspector 🛡️ / Surge Rider 🔥 / Vault Buster 💰 / Chaos
+      Engine 🌪️ / Steady Burn 🧯 alongside the original sets)
+- [ ] Corruption system on cards (variant plumbing now exists via mutations)
 - [x] Card evolution: merge 3 duplicates → random card of next rarity
-      (`/api/game/evolve`, ✨ buttons in Inventory tab; legendary is terminal).
-      "Mutations" (stat-variance variants) remain open as future flavor
+      (`/api/game/evolve`, ✨ buttons in Inventory tab; legendary is terminal)
+- [x] Mutations: evolved cards roll ✦5–25% effect strength; a mutated copy
+      empowers every copy of that card id in any deck; ✦ badges in
+      Inventory/Deck panels
 - [ ] Near-miss presentation + streak smoothing — NOTE: near-miss maps poorly
       to the unique-count payout engine (pairs are too common to read as
       "almost"); revisit only if reels ever get per-symbol values

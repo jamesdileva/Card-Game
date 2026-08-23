@@ -33,12 +33,25 @@ const {
 } = require("../game/validate");
 
 // Insert a reward card into a user's inventory; returns the stored row.
-function insertReward(userId, reward) {
+function insertReward(userId, reward, mutation = 1) {
   return db
     .prepare(
-      "INSERT INTO inventory (user_id, card_id, rarity) VALUES (?,?,?) RETURNING card_id AS id, rarity"
+      "INSERT INTO inventory (user_id, card_id, rarity, mutation) VALUES (?,?,?,?) RETURNING card_id AS id, rarity"
     )
-    .get(userId, reward.id, reward.rarity || "common");
+    .get(userId, reward.id, reward.rarity || "common", mutation);
+}
+
+// Highest mutation per card id for a user's evolved cards. A mutated copy
+// empowers every copy of that id used in any deck.
+function getMutationMap(userId) {
+  const rows = db
+    .prepare(
+      "SELECT card_id, MAX(mutation) AS m FROM inventory WHERE user_id=? AND mutation > 1 GROUP BY card_id"
+    )
+    .all(userId);
+  const map = {};
+  rows.forEach((r) => { map[r.card_id] = r.m; });
+  return map;
 }
 
 // --- HELPER ---
@@ -84,7 +97,7 @@ router.get("/state", async (req, res) => {
 
   // ✅ INVENTORY
   const invResult = db
-    .prepare("SELECT card_id, rarity FROM inventory WHERE user_id=?")
+    .prepare("SELECT card_id, rarity, mutation FROM inventory WHERE user_id=?")
     .all(req.session.userId);
 
   const stacked = {};
@@ -96,10 +109,12 @@ router.get("/state", async (req, res) => {
       stacked[id] = {
         id,
         rarity: c.rarity || "common",
-        count: 1
+        count: 1,
+        mutation: c.mutation || 1
       };
     } else {
       stacked[id].count++;
+      stacked[id].mutation = Math.max(stacked[id].mutation, c.mutation || 1);
     }
   });
 
@@ -120,7 +135,7 @@ router.get("/state", async (req, res) => {
   });
 
   // ✅ EFFECTS
-  const effects = calculateDeckEffects(deck);
+  const effects = calculateDeckEffects(deck, getMutationMap(req.session.userId));
   calculateSynergies(deck, effects);
 
   // ✅ RESPONSE
@@ -144,7 +159,7 @@ router.get("/inventory", async (req, res) => {
   if (!(await requireLogin(req, res))) return;
 
   const result = db
-    .prepare("SELECT card_id, rarity FROM inventory WHERE user_id=?")
+    .prepare("SELECT card_id, rarity, mutation FROM inventory WHERE user_id=?")
     .all(req.session.userId);
 
   const stacked = {};
@@ -156,10 +171,12 @@ router.get("/inventory", async (req, res) => {
       stacked[id] = {
         id,
         rarity: c.rarity || "common",
-        count: 1
+        count: 1,
+        mutation: c.mutation || 1
       };
     } else {
       stacked[id].count++;
+      stacked[id].mutation = Math.max(stacked[id].mutation, c.mutation || 1);
     }
   });
 
@@ -379,7 +396,7 @@ router.post("/spin", async (req, res) => {
   }
 
   // --- 🎴 DECK EFFECTS + SYNERGIES ---
-  const effects = calculateDeckEffects(deck);
+  const effects = calculateDeckEffects(deck, getMutationMap(req.session.userId));
   calculateSynergies(deck, effects);
 
   // --- ⚡ RANDOM EVENT ---
@@ -515,7 +532,7 @@ router.post("/coinflip", async (req, res) => {
     deck[row.slot] = row.card_id;
   });
 
-  const effects = calculateDeckEffects(deck);
+  const effects = calculateDeckEffects(deck, getMutationMap(req.session.userId));
   calculateSynergies(deck, effects);
 
   const { flip, win, payout, newStreak } = playCoinflip({
@@ -622,7 +639,7 @@ router.post("/highlow", async (req, res) => {
       deck[row.slot] = row.card_id;
     });
 
-    const effects = calculateDeckEffects(deck);
+    const effects = calculateDeckEffects(deck, getMutationMap(req.session.userId));
     calculateSynergies(deck, effects);
 
     const outcome = playHilo({
@@ -878,6 +895,8 @@ router.post("/evolve", async (req, res) => {
     }
 
     const evolved = pickEvolvedCard(rows[0].rarity);
+    // 🧬 mutations: evolved cards roll a permanent power boost (5–25%)
+    const mutation = Math.round((1.05 + Math.random() * 0.2) * 100) / 100;
 
     // remove MERGE_COST copies, then insert the evolved card
     const remove = db.prepare(
@@ -885,14 +904,15 @@ router.post("/evolve", async (req, res) => {
     );
     const tx = db.transaction(() => {
       for (let i = 0; i < MERGE_COST; i++) remove.run(rows[i].inv_id);
-      return insertReward(req.session.userId, evolved);
+      return insertReward(req.session.userId, evolved, mutation);
     });
     const inserted = tx.immediate();
 
     res.json({
       consumed: { id: cardId, count: MERGE_COST },
       evolved: inserted,
-      message: `Merged ${MERGE_COST}× ${cardId} into ${inserted.id}`
+      mutation,
+      message: `Merged ${MERGE_COST}× ${cardId} into ${inserted.id} (✦${Math.round((mutation - 1) * 100)}% mutation)`
     });
   } catch (err) {
     console.error("🔥 EVOLVE ERROR:", err);

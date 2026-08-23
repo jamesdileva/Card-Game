@@ -49,10 +49,10 @@ export default function DeckPanel({ deck, inventory, setDeck, setToast }) {
             const item = inventory.find((inv) => inv.id === card);
 
             return (
-              <div
-                key={i}
-                className="w-24"
-                draggable={!!card}
+            <div
+              key={i}
+              className="relative w-24"
+              draggable={!!card}
                 onDragStart={(e) => {
                   validDropRef.current = false;
                   e.currentTarget.classList.add("opacity-50");
@@ -91,15 +91,24 @@ export default function DeckPanel({ deck, inventory, setDeck, setToast }) {
                 }}
                 onClick={() => card && removeFromSlot(i)}
               >
-                <div className="h-32">
-                  {card ? (
-                    <Card id={card} rarity={item?.rarity} />
-                  ) : (
-                    <div className="w-full h-full rounded-xl border-2 border-dashed border-zinc-600 bg-zinc-800 flex items-center justify-center text-zinc-500 text-xs">
-                      Drop Card
-                    </div>
-                  )}
-                </div>
+              <div className="h-32">
+                {card ? (
+                  <Card id={card} rarity={item?.rarity} />
+                ) : (
+                  <div className="w-full h-full rounded-xl border-2 border-dashed border-zinc-600 bg-zinc-800 flex items-center justify-center text-zinc-500 text-xs">
+                    Drop Card
+                  </div>
+                )}
+                {item?.mutation > 1 && (
+                  <span
+                    title={`Mutation: +${Math.round((item.mutation - 1) * 100)}% effect strength`}
+                    className="absolute -top-1.5 -left-1.5 bg-purple-500 text-white text-[9px]
+                      font-bold rounded-full px-1 h-4 flex items-center z-10"
+                  >
+                    ✦{Math.round((item.mutation - 1) * 100)}%
+                  </span>
+                )}
+              </div>
                 <div className="text-[9px] text-center text-zinc-500 mt-1">
                   Slot {i + 1}
                 </div>

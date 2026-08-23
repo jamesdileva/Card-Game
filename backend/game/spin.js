@@ -121,8 +121,8 @@ function computePayout({ bet, basePayout, effects, playerBoost, winStreak, event
 
   // Safety Net: refund part of the bet on losing spins; never counts as a
   // win for streak purposes.
-  if (basePayout === 0 && effects.safetyNet) {
-    finalPayout += Math.floor(bet * 0.2);
+  if (basePayout === 0 && effects.safetyNetRefund > 0) {
+    finalPayout += Math.floor(bet * Math.min(effects.safetyNetRefund, 0.5));
   }
 
   // Jackpot Surge: tiny chance a winning spin pays ×5 (capped).

@@ -2,7 +2,7 @@
 // Extracted verbatim from routes/gameRoutes.js so the spin pipeline can be
 // unit-tested directly.
 
-function calculateDeckEffects(deck) {
+function calculateDeckEffects(deck, mutations = {}) {
   const effects = {
     payoutMult: 1,
     xpMult: 1,
@@ -10,49 +10,53 @@ function calculateDeckEffects(deck) {
     luck: 1,
     streakBonusRate: 0.05, // per-win streak bonus growth (Hot Streak raises it)
     jackpotSurge: 0,       // total chance a win pays ×5
-    safetyNet: false       // refund part of the bet on losing spins
+    safetyNetRefund: 0     // fraction of bet refunded on losing spins
   };
+
+  // Mutated copies (from card evolution) empower their whole stack: every
+  // copy of that card id in the deck counts `mutation`× stronger.
+  const mut = (id) => mutations[id] || 1;
 
   deck.forEach(cardId => {
     switch (cardId) {
       case "lucky_charm":
-        effects.luck += 0.1;
+        effects.luck += 0.1 * mut(cardId);
         break;
 
       case "reroll":
-        effects.rerollChance += 0.25;
+        effects.rerollChance += 0.25 * mut(cardId);
         break;
 
       case "double_down":
-        effects.payoutMult += 0.5;
+        effects.payoutMult += 0.5 * mut(cardId);
         break;
 
       case "jackpot_boost":
-        effects.payoutMult += 1.0;
+        effects.payoutMult += 1.0 * mut(cardId);
         break;
 
       case "wild_symbol":
-        effects.luck += 0.3;
+        effects.luck += 0.3 * mut(cardId);
         break;
 
       case "multiplier_chain":
-        effects.payoutMult += 0.2;
+        effects.payoutMult += 0.2 * mut(cardId);
         break;
 
       case "mythic_multiplier":
-        effects.payoutMult += 2.0;
+        effects.payoutMult += 2.0 * mut(cardId);
         break;
 
       case "safety_net":
-        effects.safetyNet = true;
+        effects.safetyNetRefund += 0.2 * mut(cardId);
         break;
 
       case "hot_streak":
-        effects.streakBonusRate += 0.02;
+        effects.streakBonusRate += 0.02 * mut(cardId);
         break;
 
       case "jackpot_surge":
-        effects.jackpotSurge += 0.03;
+        effects.jackpotSurge += 0.03 * mut(cardId);
         break;
     }
   });
@@ -159,6 +163,43 @@ function calculateSynergies(deck, effects) {
     effects.payoutMult *= 2;
     effects.luck += 0.5;
     addSynergy("💀 GOD BUILD");
+  }
+
+  // -------------------------
+  // 🎭 ARCHETYPE SYNERGIES
+  // -------------------------
+
+  // Safe Grinder: refund + rerolls compound
+  if (d.includes("safety_net") && d.includes("reroll")) {
+    effects.safetyNetRefund += 0.12;
+    effects.rerollChance += 0.15;
+    addSynergy("🛡️ Safety Inspector");
+  }
+
+  // Streak meets surge
+  if (count["hot_streak"] && count["jackpot_surge"]) {
+    effects.jackpotSurge += 0.03;
+    effects.streakBonusRate += 0.01;
+    addSynergy("🔥 Surge Rider");
+  }
+
+  // High Roller: vault buster
+  if (d.includes("jackpot_boost") && d.includes("jackpot_surge")) {
+    effects.payoutMult *= 1.5;
+    addSynergy("💰 Vault Buster");
+  }
+
+  // Chaos: wild luck feeds harmony + drops
+  if (d.includes("wild_symbol") && d.includes("jackpot_surge")) {
+    effects.luck += 0.4;
+    addSynergy("🌪️ Chaos Engine");
+  }
+
+  // Steady burn: grind with a growing streak
+  if (count["safety_net"] && count["hot_streak"]) {
+    effects.safetyNetRefund += 0.05;
+    effects.streakBonusRate += 0.02;
+    addSynergy("🧯 Steady Burn");
   }
 
   return effects;

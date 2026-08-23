@@ -43,6 +43,32 @@ Notes:
 
 ## Changelog / History
 
+### 2026-08-22 — Sprint: archetype synergies + card mutations
+
+- **Five new synergies** in `effects.js` for archetype identity:
+  🛡️ Safety Inspector (safety_net+reroll: refund +12pts, reroll +15),
+  🔥 Surge Rider (hot_streak+jackpot_surge: surge +3, streak rate +1),
+  💰 Vault Buster (jackpot_boost+jackpot_surge: mult ×1.5),
+  🌪️ Chaos Engine (wild_symbol+jackpot_surge: luck +0.4),
+  🧯 Steady Burn (safety_net+hot_streak: refund +5pts, streak rate +2).
+- **Safety Net is numeric now**: `effects.safetyNetRefund` (0 default)
+  replaces the boolean; `computePayout` refunds
+  `floor(bet × min(refund, 0.5))` on losses.
+- **Mutations:** `inventory.mutation` column (`ensureColumn` migration);
+  `/evolve` rolls ✦5–25% (rounded to 2dp) on the evolved card. A mutated
+  copy empowers **every copy of that card id in any deck**:
+  `calculateDeckEffects(deck, mutationMap)` multiplies each per-card
+  additive contribution by `mutations[id] || 1`. `getMutationMap(userId)`
+  helper wired into /state, /spin, /coinflip, /highlow. Inventory payloads
+  (/state, /inventory) now carry max mutation per card id; frontend shows
+  ✦N% badges in Deck + Inventory panels.
+- Tests: 75 backend tests passing (mutation amplification + new synergy
+  suites; safetyNet assertions migrated to the numeric field).
+- Live smoke: evolve double_down → multiplier_chain ✦1.13 → deck payoutMult
+  1.226 (= 1 + 0.2×1.13) confirmed through /state.
+- Smoke-test lesson: `pickEvolvedCard` is random — assert against the
+  evolved card's *actual* stats, not assumptions about which card you got.
+
 ### 2026-08-22 — Fix: auto-spin stall + blur-on-results
 
 - **Auto-spin silent stop:** the chained loop only re-triggered from the

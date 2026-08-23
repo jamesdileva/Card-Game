@@ -35,7 +35,7 @@ describe("game/effects", () => {
       luck: 1,
       streakBonusRate: 0.05,
       jackpotSurge: 0,
-      safetyNet: false
+      safetyNetRefund: 0
     });
   });
 
@@ -83,7 +83,7 @@ describe("game/effects", () => {
 
   test("phase-3 cards set their effect fields", () => {
     const e1 = calculateDeckEffects(["safety_net", null, null]);
-    assert.strictEqual(e1.safetyNet, true);
+    assert.strictEqual(e1.safetyNetRefund, 0.2);
 
     const e2 = calculateDeckEffects(["hot_streak", "hot_streak", null]);
     assert.ok(Math.abs(e2.streakBonusRate - 0.09) < 1e-9); // 0.05 + 2×0.02
@@ -289,11 +289,40 @@ describe("game/spin — payout chain", () => {
       basePayout: 0,
       winStreak: 3,
       event: null,
-      effects: { payoutMult: 1, safetyNet: true },
+      effects: { payoutMult: 1, safetyNetRefund: 0.2 },
       playerBoost: 1
     });
     assert.strictEqual(finalPayout, 40); // 20% of 200
     assert.strictEqual(newStreak, 0);
+  });
+
+  test("mutations amplify per-card effect contributions", () => {
+    const e = calculateDeckEffects(
+      ["mythic_multiplier", null, null],
+      { mythic_multiplier: 1.5 }
+    );
+    // +2.0 base × 1.5 mutation
+    assert.strictEqual(e.payoutMult, 4);
+
+    const unmutated = calculateDeckEffects(
+      ["mythic_multiplier", null, null],
+      {}
+    );
+    assert.strictEqual(unmutated.payoutMult, 3);
+  });
+
+  test("archetype synergies apply", () => {
+    const inspector = calculateDeckEffects(["safety_net", "reroll", null]);
+    calculateSynergies(["safety_net", "reroll", null], inspector);
+    assert.ok(inspector.synergies.includes("🛡️ Safety Inspector"));
+    assert.ok(Math.abs(inspector.safetyNetRefund - 0.32) < 1e-9); // 0.2 + 0.12
+    assert.strictEqual(inspector.rerollChance, 0.4); // 0.25 + 0.15
+
+    const vault = calculateDeckEffects(["jackpot_boost", "jackpot_surge", null]);
+    calculateSynergies(["jackpot_boost", "jackpot_surge", null], vault);
+    assert.ok(vault.synergies.includes("💰 Vault Buster"));
+    // jackpot_boost +1 → ×1 surge synergy none... mult = 2 × 1.5
+    assert.ok(Math.abs(vault.payoutMult - 3) < 1e-9);
   });
 
   test("Safety Net does not pay on winning spins", () => {
@@ -302,7 +331,7 @@ describe("game/spin — payout chain", () => {
       basePayout: 1000,
       winStreak: 0,
       event: null,
-      effects: { payoutMult: 1, safetyNet: true },
+      effects: { payoutMult: 1, safetyNetRefund: 0.2 },
       playerBoost: 1
     });
     // normal win math only — no +20 refund
