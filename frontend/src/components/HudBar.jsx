@@ -2,7 +2,7 @@ export default function HudBar({ balance, xp, level, loginStreak, onLogout }) {
   return (
     <header className="sticky top-0 z-40 bg-zinc-950/90 backdrop-blur border-b border-zinc-800">
       <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-4">
-        <div className="text-lg font-bold whitespace-nowrap">
+        <div className="text-lg font-bold whitespace-nowrap" data-testid="balance">
           💰 ${balance.toLocaleString()}
         </div>
 

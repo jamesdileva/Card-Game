@@ -127,6 +127,33 @@ describe("game/crates — corrupted tiers", () => {
       assert.ok(rewards.every((r) => r.rarity !== "legendary"));
     });
   });
+
+  test("corruption rate lands in-band (~35%)", () => {
+    let corrupted = 0;
+    const runs = 2000;
+    for (let i = 0; i < runs; i++) {
+      for (const r of rollCorruptedRewards(2)) {
+        if (r.corrupted) corrupted++;
+      }
+    }
+    // each reward corrupts at CORRUPTION_CHANCE (0.35); accept a wide band
+    assert.ok(
+      corrupted > runs * 2 * 0.25 && corrupted < runs * 2 * 0.45,
+      `expected ~35% corruption rate, got ${((corrupted / (runs * 2)) * 100).toFixed(1)}%`
+    );
+  });
+
+  test("standard crates never emit corrupted rewards", () => {
+    for (let i = 0; i < 200; i++) {
+      for (const type of Object.keys(CRATE_TYPES)) {
+        if (type === "corrupted") continue;
+        const opened = openCrate(type);
+        for (const r of [...opened.rewards, ...(opened.bonusRewards || [])]) {
+          assert.ok(!r.corrupted, `${type} emitted a corrupted reward`);
+        }
+      }
+    }
+  });
 });
 
 describe("game/crates — crate-in-crate", () => {
