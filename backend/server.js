@@ -41,6 +41,14 @@ app.use(session({
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/game", require("./routes/gameRoutes"));
 
+// ✅ GLOBAL ERROR HANDLER — always answer JSON so the frontend never has
+// to parse an HTML error page (Express 5 forwards async throws here).
+app.use((err, req, res, next) => {
+  console.error(`💥 ${req.method} ${req.path}:`, err);
+  if (res.headersSent) return next(err);
+  res.status(500).json({ error: "Server error" });
+});
+
 // ✅ PORT FIX
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on ${PORT}`));

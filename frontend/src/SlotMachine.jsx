@@ -59,7 +59,23 @@ async function authedFetch(url, options = {}) {
     setSessionExpired(true);
     return null;
   }
-  return res;
+
+  // Parse defensively: a crashed request can come back as HTML (Express
+  // error page / proxy page) — surface it as a normal { error } instead of
+  // throwing SyntaxError inside callers.
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { error: `Server error (${res.status})` };
+  }
+
+  return {
+    status: res.status,
+    ok: res.ok,
+    json: async () => data
+  };
 }
 
 
