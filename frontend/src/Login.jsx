@@ -1,5 +1,8 @@
 import { useState } from "react";
-const API = import.meta.env.VITE_API_URL + "api";
+// Same-origin API: the dev server proxies /api → localhost:3000 (see
+// vite.config.js) and packaged/single-server builds serve API + renderer
+// from one origin.
+const API = "/api";
 export default function Login({ onLogin }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");

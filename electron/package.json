@@ -1,0 +1,73 @@
+{
+  "name": "card-game-electron",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Card Game desktop host (Electron, local-only)",
+  "main": "main.cjs",
+  "scripts": {
+    "dev": "electron .",
+    "prepack": "npm run build --prefix ../frontend",
+    "pack": "electron-builder --win dir"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0"
+  },
+  "devDependencies": {
+    "electron": "latest",
+    "electron-builder": "latest"
+  },
+  "build": {
+    "appId": "com.cardgame.local",
+    "productName": "CardGame",
+    "directories": {
+      "output": "../release"
+    },
+    "files": [
+      "main.cjs",
+      "package.json",
+      "node_modules/**/*",
+      "!node_modules/better-sqlite3/deps/**",
+      "!node_modules/better-sqlite3/src/**",
+      "!node_modules/better-sqlite3/prebuilds/darwin-*",
+      "!node_modules/better-sqlite3/prebuilds/linux*",
+      "!node_modules/better-sqlite3/prebuilds/win32-arm64.node",
+      {
+        "from": "../backend",
+        "to": "backend",
+        "filter": [
+          "**/*",
+          "!node_modules/**",
+          "!cardgame.db*",
+          "!.env",
+          "!test/**",
+          "!scripts/**"
+        ]
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "../frontend/dist",
+        "to": "frontend-dist"
+      }
+    ],
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "npmRebuild": false,
+    "win": {
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
+  }
+}

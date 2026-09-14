@@ -56,3 +56,88 @@ export function nextRarity(rarity) {
   if (idx === -1 || idx === RARITY_ORDER.length - 1) return null;
   return RARITY_ORDER[idx + 1];
 }
+
+// Set/synergy descriptions (kept in sync with backend/game/effects.js).
+// Keyed by trimmed label — one backend label ("Triple Mythic") carries a
+// stray leading space, trimming makes lookups robust to that quirk.
+const SYNERGY_EFFECTS = {
+  "Lucky Jackpot": {
+    req: "Lucky Charm + Jackpot Boost",
+    fx: "payout ×1.5, +10% Luck"
+  },
+  "Chain Reroll": {
+    req: "Reroll + Multiplier Chain",
+    fx: "+20% reroll chance, payout ×1.3"
+  },
+  "Mythic Double": { req: "Double Down + Mythic Multiplier", fx: "payout ×2" },
+  "Triple Mythic": {
+    req: "3× Mythic Multiplier",
+    fx: "payout +7x, +20% Luck"
+  },
+  "Lucky Pair": { req: "2× Lucky Charm", fx: "+30% reroll chance" },
+  "Reroll Engine": { req: "2× Reroll", fx: "+50% reroll chance" },
+  "Luck Engine": {
+    req: "Lucky Charm + Reroll",
+    fx: "+25% reroll chance, +20% Luck"
+  },
+  "Chain Scaling": {
+    req: "2× Multiplier Chain",
+    fx: "payout +1x, XP gain +50%"
+  },
+  "Wild Surge": {
+    req: "2× Wild Symbol",
+    fx: "+$300 flat bonus on winning spins"
+  },
+  "Jackpot Overload": { req: "2× Jackpot Boost", fx: "payout +2x" },
+  "GOD BUILD": {
+    req: "Mythic Multiplier + Jackpot Boost + Multiplier Chain",
+    fx: "payout ×2, +50% Luck"
+  },
+  "Safety Inspector": {
+    req: "Safety Net + Reroll",
+    fx: "refund +12% of bet, +15% reroll chance"
+  },
+  "Surge Rider": {
+    req: "Hot Streak + Jackpot Surge",
+    fx: "surge chance +3%, streak rate +1%"
+  },
+  "Vault Buster": { req: "Jackpot Boost + Jackpot Surge", fx: "payout ×1.5" },
+  "Chaos Engine": { req: "Wild Symbol + Jackpot Surge", fx: "+40% Luck" },
+  "Steady Burn": {
+    req: "Safety Net + Hot Streak",
+    fx: "refund +5% of bet, streak rate +2%"
+  }
+};
+
+// Stat tile explanations for the stats bar hover tooltips.
+export const STAT_TOOLTIPS = {
+  deck: "Deck payout multiplier — combined effect of your 3 equipped cards and their synergies",
+  boost:
+    "Payout Boost — permanent upgrade bought in the Store; multiplies every payout",
+  xp: "XP Boost — permanent upgrade bought in the Store; levels you up faster",
+  luck:
+    "Luck — nudges reels toward matches after a spin and widens bonus-drop odds"
+};
+
+// Backend labels are emoji-prefixed ("🛡️ Safety Inspector") and one carries
+// a stray leading space ("Triple Mythic"); normalize to bare words for lookup.
+function synergyKey(label) {
+  return String(label)
+    .trim()
+    .replace(/^[^\p{L}\p{N}]+/u, "")
+    .trim();
+}
+
+// Builds the hover text for the synergy strip: each active set on its own
+// line as "Name · required cards · effect". Unknown labels pass through so
+// a backend rename never produces an empty tooltip entry.
+export function synergyTooltip(synergies) {
+  if (!synergies || synergies.length === 0) return "";
+  return synergies
+    .map((raw) => {
+      const name = String(raw).trim();
+      const info = SYNERGY_EFFECTS[synergyKey(raw)];
+      return info ? `${name} · ${info.req} · ${info.fx}` : name;
+    })
+    .join("\n");
+}

@@ -22,3 +22,7 @@ cardgame.db*
 # build/output (if added later)
 dist/
 build/
+
+# electron packaged app (400MB portable output, rebuild via electron pack)
+release/
+release-staging/

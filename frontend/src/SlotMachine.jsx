@@ -7,7 +7,7 @@ import InventoryPanel from "./components/InventoryPanel";
 import StorePanel from "./components/StorePanel";
 import CoinFlip from "./components/CoinFlip";
 import HiLo from "./components/HiLo";
-import { cardName } from "./components/cardNames";
+import { cardName, synergyTooltip, STAT_TOOLTIPS } from "./components/cardNames";
 
 export default function SlotMachine() {
   const [balance, setBalance] = useState(0);
@@ -47,11 +47,14 @@ const audioCtxRef = useRef(null);
 const spinLockRef = useRef(false);
 const coinLockRef = useRef(false);
 const hiloBusyRef = useRef(false);
+const crateLockRef = useRef(false);
+const upgradeLockRef = useRef(false);
 const autoSpinRef = useRef(autoSpin);
 const spinFnRef = useRef(null);
-const API = import.meta.env.VITE_API_URL + "api";
+const API = "/api"; // same-origin (Vite proxy in dev, single server when packaged)
 const displayBalance = useCountUp(balance);
 const displayPayout = useCountUp(payout, 400);
+const [storeBusy, setStoreBusy] = useState(false);
 
 async function authedFetch(url, options = {}) {
   const res = await fetch(url, { credentials: "include", ...options });
@@ -199,41 +202,59 @@ function getWinningIndices(reels) {
   return winners.flat();
 }
 async function upgradeXP() {
-  const res = await authedFetch(`${API}/game/upgrade/xp`, {
-    method: "POST"
-  });
+  if (upgradeLockRef.current) return;
+  upgradeLockRef.current = true;
+  setStoreBusy(true);
 
-  if (!res) return;
+  try {
+    const res = await authedFetch(`${API}/game/upgrade/xp`, {
+      method: "POST"
+    });
 
-  const data = await res.json();
+    if (!res) return;
 
-  if (data.error) {
-    alert(data.error);
-    return;
+    const data = await res.json();
+
+    if (data.error) {
+      alert(data.error);
+      return;
+    }
+
+    setBalance(data.balance);
+    setXpBoost(data.xpBoost);
+    setToast("⚡ XP Boost upgraded!");
+  } finally {
+    upgradeLockRef.current = false;
+    setStoreBusy(false);
   }
-
-  setBalance(data.balance);
-  setXpBoost(data.xpBoost);
-  setToast("⚡ XP Boost upgraded!");
 }
 
 async function upgradePayout() {
-  const res = await authedFetch(`${API}/game/upgrade/payout`, {
-    method: "POST"
-  });
+  if (upgradeLockRef.current) return;
+  upgradeLockRef.current = true;
+  setStoreBusy(true);
 
-  if (!res) return;
+  try {
+    const res = await authedFetch(`${API}/game/upgrade/payout`, {
+      method: "POST"
+    });
 
-  const data = await res.json();
+    if (!res) return;
 
-  if (data.error) {
-    alert(data.error);
-    return;
+    const data = await res.json();
+
+    if (data.error) {
+      alert(data.error);
+      return;
+    }
+
+    setBalance(data.balance);
+    setPlayerBoost(data.payoutBoost);
+    setToast("💰 Payout Boost upgraded!");
+  } finally {
+    upgradeLockRef.current = false;
+    setStoreBusy(false);
   }
-
-  setBalance(data.balance);
-  setPlayerBoost(data.payoutBoost);
-  setToast("💰 Payout Boost upgraded!");
 }
 
 function finishSpin(data) {
@@ -650,6 +671,10 @@ useEffect(() => {
     }, [deck]);
 
   async function openCrate(type) {
+    if (crateLockRef.current) return;
+    crateLockRef.current = true;
+    setStoreBusy(true);
+
     try {
       const res = await authedFetch(`${API}/game/open-crate`, {
         method: "POST",
@@ -719,6 +744,9 @@ useEffect(() => {
       }
     } catch (err) {
       console.error("Failed to open crate:", err);
+    } finally {
+      crateLockRef.current = false;
+      setStoreBusy(false);
     }
   }
 
@@ -782,7 +810,10 @@ useEffect(() => {
             <div className="flex justify-between items-center text-xs">
 
               {/* Deck Mult */}
-              <div className="flex flex-col items-center flex-1">
+              <div
+                className="flex flex-col items-center flex-1 cursor-help"
+                title={STAT_TOOLTIPS.deck}
+              >
                 <span className="text-zinc-500 text-[10px]">DECK</span>
                 <span className="text-purple-400 font-bold">
                   x{(effects.payoutMult || 1).toFixed(2)}
@@ -793,7 +824,10 @@ useEffect(() => {
               <div className="w-px h-6 bg-zinc-700"></div>
 
               {/* Payout Boost */}
-              <div className="flex flex-col items-center flex-1">
+              <div
+                className="flex flex-col items-center flex-1 cursor-help"
+                title={STAT_TOOLTIPS.boost}
+              >
                 <span className="text-zinc-500 text-[10px]">BOOST</span>
                 <span className="text-green-400 font-bold">
                   x{playerBoost.toFixed(2)}
@@ -804,7 +838,10 @@ useEffect(() => {
               <div className="w-px h-6 bg-zinc-700"></div>
 
               {/* XP Boost */}
-              <div className="flex flex-col items-center flex-1">
+              <div
+                className="flex flex-col items-center flex-1 cursor-help"
+                title={STAT_TOOLTIPS.xp}
+              >
                 <span className="text-zinc-500 text-[10px]">XP</span>
                 <span className="text-blue-400 font-bold">
                   x{xpBoost.toFixed(2)}
@@ -813,7 +850,10 @@ useEffect(() => {
               {/* Divider */}
               <div className="w-px h-6 bg-zinc-700"></div>
               {/* Luck */}
-              <div className="flex flex-col items-center flex-1">
+              <div
+                className="flex flex-col items-center flex-1 cursor-help"
+                title={STAT_TOOLTIPS.luck}
+              >
                 <span className="text-zinc-500 text-[10px]">Luck</span>
                 <span className="text-blue-400 font-bold">
                   x{(effects?.luck ?? 1).toFixed(2)}
@@ -831,7 +871,14 @@ useEffect(() => {
           <div className="flex items-center text-xs text-center">
 
             {/* 🟣 SYNERGIES */}
-            <div className="flex-1 text-purple-400 font-semibold truncate">
+            <div
+              className="flex-1 text-purple-400 font-semibold truncate cursor-help whitespace-pre-line"
+              title={
+                effects.synergies?.length > 0
+                  ? `Active sets:\n${synergyTooltip(effects.synergies)}`
+                  : "Equip cards that combine into a set to unlock synergies"
+              }
+            >
               {effects.synergies?.length > 0
                 ? `🧩 ${effects.synergies.join(" • ")}`
                 : "—"}
@@ -1063,6 +1110,7 @@ useEffect(() => {
             onUpgradePayout={upgradePayout}
             onOpenCrate={openCrate}
             pendingCrate={pendingCrate}
+            busy={storeBusy}
           />
         )}
       </aside>

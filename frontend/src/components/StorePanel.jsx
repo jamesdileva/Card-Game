@@ -10,7 +10,8 @@ export default function StorePanel({
   onUpgradeXP,
   onUpgradePayout,
   onOpenCrate,
-  pendingCrate
+  pendingCrate,
+  busy = false
 }) {
   const [now, setNow] = useState(() => Date.now());
 
@@ -75,14 +76,26 @@ export default function StorePanel({
         <div className="flex gap-2">
           <button
             onClick={onUpgradeXP}
-            className="flex-1 bg-blue-500 hover:bg-blue-600 rounded-lg py-2 text-sm font-bold"
+            disabled={busy}
+            className={`flex-1 rounded-lg py-2 text-sm font-bold transition
+              ${busy
+                ? "bg-zinc-600 cursor-not-allowed"
+                : "bg-blue-500 hover:bg-blue-600"
+              }
+            `}
           >
             ⚡ XP Boost ($1000)
           </button>
 
           <button
             onClick={onUpgradePayout}
-            className="flex-1 bg-green-500 hover:bg-green-600 rounded-lg py-2 text-sm font-bold"
+            disabled={busy}
+            className={`flex-1 rounded-lg py-2 text-sm font-bold transition
+              ${busy
+                ? "bg-zinc-600 cursor-not-allowed"
+                : "bg-green-500 hover:bg-green-600"
+              }
+            `}
           >
             💰 Payout Boost ($1000)
           </button>
@@ -93,22 +106,24 @@ export default function StorePanel({
         <div className="text-sm text-zinc-400 mb-2">Crates</div>
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {crates.map((crate) => (
-            <button
-              key={crate.type}
-              onClick={() => onOpenCrate(crate.type)}
-              disabled={crate.type === "timed" && remaining !== null && !timedReady}
-              className={`py-2 rounded-lg text-xs font-bold transition flex flex-col items-center
-                ${crate.style}
-                ${crate.type === "timed" && remaining !== null && !timedReady
-                  ? "opacity-70 cursor-not-allowed"
-                  : ""
-                }`}
-            >
-              <span>{crate.label}</span>
-              <span className="text-[10px] font-normal opacity-80">{crate.sub}</span>
-            </button>
-          ))}
+          {crates.map((crate) => {
+            const timedLocked =
+              crate.type === "timed" && remaining !== null && !timedReady;
+            return (
+              <button
+                key={crate.type}
+                onClick={() => onOpenCrate(crate.type)}
+                disabled={busy || timedLocked}
+                className={`py-2 rounded-lg text-xs font-bold transition flex flex-col items-center
+                  ${crate.style}
+                  ${busy || timedLocked ? "opacity-70 cursor-not-allowed" : ""}
+                `}
+              >
+                <span>{crate.label}</span>
+                <span className="text-[10px] font-normal opacity-80">{crate.sub}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>

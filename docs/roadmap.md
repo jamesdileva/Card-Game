@@ -76,12 +76,15 @@ Items marked ✅ are done.
       bcryptjs) — drop the dep from package.json
 
 ### Frontend
-- [ ] Add a test framework (vitest + @testing-library/react) — start with
-      deck validation and payout display components
+- [x] Add a test framework (vitest + @testing-library/react) — 57 tests
+      across cardNames/Card/DeckPanel/StorePanel/CoinFlip/HiLo/useCountUp;
+      quality gate is now `npm test` + lint + build
 - [ ] Central fetch wrapper: consistent error toasts, session-expiry handling
       (redirect to login on 401)
-- [ ] Optimistic UI states or loading guards so double-clicks can't fire
-      double spins/crate opens
+- [x] Optimistic UI states or loading guards so double-clicks can't fire
+      double spins/crate opens (spin/coinflip/hilo ref locks + store
+      crate/upgrade ref locks with a shared busy state disabling all
+      StorePanel buttons in flight)
 
 ## Track 3 — UI/UX Improvements
 

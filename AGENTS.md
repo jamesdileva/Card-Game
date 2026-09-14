@@ -7,7 +7,8 @@ on this repo. Newest entries at the top.
 
 - **What:** slot machine + collectible cards + 3-card deck + crates web game
 - **Stack:** React 19/Vite + Tailwind · Express 5 · SQLite (better-sqlite3)
-- **Deploy:** Vercel (frontend) · Render (backend) · SQLite file on Render disk
+- **Deploy:** local-only Electron portable exe (`release/win-unpacked/CardGame.exe`).
+  The old Vercel (frontend) / Render (backend) deploy is retired.
 - **Docs:** start at [docs/README.md](docs/README.md) — architecture,
   game design/economy, API reference, roadmap
 
@@ -22,26 +23,108 @@ on this repo. Newest entries at the top.
 | Frontend dev | `cd frontend && npm run dev` (port 5173) |
 | Frontend build | `cd frontend && npm run build` |
 | Frontend lint | `cd frontend && npm run lint` |
+| Frontend tests | `cd frontend && npm test` (vitest + testing-library) |
+| Electron dev | `cd electron && npm install && npm run dev` (spawns backend via plain node; set `CARDGAME_RENDERER_URL=http://localhost:5173` for Vite HMR) |
+| Electron package (portable) | `cd electron && npm run pack` → `release/win-unpacked/CardGame.exe` (no installer, `dir` target only) |
 
 Notes:
 
 - The SQLite DB (`backend/cardgame.db`) is auto-created on first boot;
   `.db*` files are gitignored.
-- Frontend has no test framework yet; its quality gate is `npm run build` +
-  `npm run lint`.
+- Frontend quality gate is `npm test` + `npm run lint` + `npm run build`.
 
 ## Conventions & Gotchas
 
-- CORS allowlist in `backend/server.js` is explicit — new deployment URLs
-  must be added there.
-- Sessions are cookie-based (`credentials: include` everywhere);
-  `secure`/`sameSite: none` in prod, `lax` locally.
+- Local-only now: CORS allowlist in `backend/server.js` is localhost-only;
+  session cookies are `secure: false` / `sameSite: lax` (same-origin).
+- Frontend API base is relative (`/api` in Login.jsx/SlotMachine.jsx) —
+  Vite dev proxies `/api` → `localhost:3000`; packaged/single-server builds
+  serve API + renderer from one origin. `VITE_API_URL` is gone.
+- `backend/server.js` exports `startServer({ port, serveDir })`; standalone
+  boot serves `../frontend/dist` when present. DB path honors
+  `CARDGAME_DB_PATH` (Electron points it at `%APPDATA%/card-game-electron/`).
+- Electron (`electron/main.cjs`): packaged = in-process backend over
+  `http://localhost:3000` (never `file://`); dev = spawns plain-node backend
+  child (native-module ABI). Backend errors mirror to
+  `%TEMP%/cardgame-electron.log` via the console.error hook.
+- Native modules: better-sqlite3 v13 ships N-API prebuilds — NO rebuild
+  needed for Electron (`npmRebuild: false`). Do NOT run
+  `electron-builder install-app-deps` / electron-rebuild here (no compiler
+  toolchain); the bundled `prebuilds/*.node` load under both Node and Electron.
+- `release/` + `release-staging/` are gitignored (400MB build output).
+- Repack gotcha: if `pack` fails `EBUSY ... app.asar`, something holds the
+  old build open — diagnosed via Sysinternals `handle.exe`; VS Code holding
+  `release/win-unpacked/resources/app.asar` blocked repack on 2026-09-14
+  (worked around via staging output `--c.directories.output=../release-staging`).
+- Sessions are cookie-based (`credentials: include` everywhere).
 - Deck/inventory ownership checks use the normalized `inventory` table
   converted to a `{ cardId: count }` map.
 - Dev/debug routes (`/dev-add-card`, `/add-balance`, …) are unguarded —
   see roadmap before relying on them outside local dev.
 
 ## Changelog / History
+
+### 2026-09-14 — Sprint: Electron portable exe (local-only)
+
+- **Packaged as portable Windows app** (`release/win-unpacked/CardGame.exe`,
+  `dir` target — no installer, double-click to play, no Node needed).
+  New `electron/` host: `main.cjs` runs the Express backend in-process and
+  serves the bundled renderer over `http://localhost:3000` (never `file://`,
+  so no CORS/cookie/router issues); SQLite lives at
+  `%APPDATA%/card-game-electron/cardgame.db`; backend errors mirror to
+  `%TEMP%/cardgame-electron.log`; single-instance lock; EADDRINUSE dialog.
+- **Local-only pivot:** frontend API base is now relative `/api`
+  (`VITE_API_URL` removed; Vite dev proxy covers local dev);
+  `backend/server.js` exposes `startServer({ port, serveDir })` + serves
+  `../frontend/dist` in single-server mode; CORS is localhost-only;
+  cookies `secure: false` / `sameSite: lax`. Vercel/Render retired.
+- **Native-module non-issue:** better-sqlite3 v13's N-API prebuilds load
+  under Electron with no rebuild (`npmRebuild: false`).
+- Verified: full smoke of staged build (health → register → login →
+  state → spin payout → userData DB → no orphan on quit), backend 80/80,
+  frontend 57/57, lint 0 errors. Stale `release/win-unpacked` repack was
+  blocked by a VS Code lock on `app.asar` — verified via
+  `release-staging/` build instead; needs one final `npm run pack` once
+  the lock is released.
+
+### 2026-08-22 — Sprint: vitest suite + set-effect tooltips + store click guards
+
+- **Frontend test framework shipped (vitest + @testing-library/react + jsdom)**:
+  `cd frontend && npm test` runs **57 tests** across 7 files —
+  - `cardNames.test.js`: name/rarity maps, evolution ladder, and a
+    **coverage test asserting every synergy label the backend emits has a
+    tooltip description** (`synergyTooltip` over all 16 labels from
+    `backend/game/effects.js`)
+  - `Card.test.jsx`: rarity/count badges, ✦ mutation, ☠ corruption ring,
+    hover-title sections
+  - `DeckPanel.test.jsx`: click-to-equip into earliest empty slot, copy-count
+    limits, deck-full/no-copies toasts, equipped-badge + dimming
+  - `StorePanel.test.jsx`: crate type ids, busy-state disabling, timed-crate
+    countdown → OPEN! transition
+  - `CoinFlip.test.jsx` / `HiLo.test.jsx`: pick/flip/disable states, odds math
+    previews (x1.90 at 50; x0.95 lower-than-100), chained rounds, impossible
+    sides
+  - `useCountUp.test.js` with a manual rAF stub (deterministic frames;
+    fake-timer rAF proved flaky)
+- **Gotchas worth keeping:** userEvent hangs under vitest fake timers unless
+  clicks go through `fireEvent`; RTL `waitFor` also deadlocks under fake
+  timers (assert directly after `act(() => vi.advanceTimersByTime(...))`);
+  `globalThis.IS_REACT_ACT_ENVIRONMENT = true` needed in `src/test/setup.js`
+  when using React's `act` directly. Test setup lives in
+  `frontend/vitest.config.js` + `src/test/setup.js`.
+- **Set/synergy hover tooltips:** new `SYNERGY_EFFECTS` map +
+  `synergyTooltip()` in `cardNames.js` (keyed by *normalized* label — backend
+  labels are emoji-prefixed and "Triple Mythic" ships with a stray leading
+  space). The effects-bar synergy strip now shows "Name · required cards ·
+  effect" per active set on hover; the four stat tiles (DECK/BOOST/XP/Luck)
+  got explanatory titles via `STAT_TOOLTIPS`. Native `title`, consistent with
+  card tooltips.
+- **Store double-click guard:** `openCrate`/`upgradeXP`/`upgradePayout` now
+  take ref locks (same pattern as spin/coinflip/hilo) + a shared `storeBusy`
+  state that disables all StorePanel buttons while a request is in flight.
+- `/dev-reset` balance aligned with `/reset-account` ($1,000, was $10,000).
+- Verified: 57 frontend tests pass, lint green (0 errors), build passes,
+  backend 80 tests still green.
 
 ### 2026-08-22 — Sprint: Sentinel coverage expansion + test top-ups
 

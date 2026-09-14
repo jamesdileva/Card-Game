@@ -322,9 +322,9 @@ router.post("/dev-reset", devOnly, async (req, res) => {
       return res.status(401).json({ error: "Not logged in" });
     }
 
-    // Reset balance
+    // Reset balance — aligned with /reset-account's $1,000
     db.prepare(
-      "UPDATE users SET balance = 10000 WHERE id = ?"
+      "UPDATE users SET balance = 1000 WHERE id = ?"
     ).run(userId);
 
     // Clear inventory

@@ -3,9 +3,11 @@ const path = require("path");
 const Database = require("better-sqlite3");
 
 // Local-first storage: better-sqlite3 (replaces the pg Pool that pointed at a
-// cloud DATABASE_URL). The file lives next to this module; schema.sql is
-// applied on first open so a fresh clone works without a manual init step.
-const db = new Database(path.join(__dirname, "cardgame.db"));
+// cloud DATABASE_URL). The file lives next to this module by default; set
+// CARDGAME_DB_PATH to relocate it (the Electron app points it at the user's
+// app-data dir, since the install location is read-only).
+const dbPath = process.env.CARDGAME_DB_PATH || path.join(__dirname, "cardgame.db");
+const db = new Database(dbPath);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 
