@@ -64,6 +64,24 @@ Notes:
 
 ## Changelog / History
 
+### 2026-09-14 — Fix: packaged-app login + account carry-over
+
+- **Root cause of "Login failed" in the exe:** the packaged app uses a fresh
+  DB (`%APPDATA%/card-game-electron/cardgame.db`) — dev accounts were never
+  there — and Register silently lied: it always alerted "Registered!" even
+  on 400/`{"error":"User exists"}`. The user's `james`/`123` (valid in dev,
+  created before the 4-char rule in `b7820ff`) was rejected on re-register
+  and then correctly 401'd on login, with zero backend trace.
+- **Carried over `james` only** (users + 3 deck + 60 inventory rows, ids
+  preserved; smoke account removed; sessions not copied; backup at
+  `cardgame.db.bak-20260914`). `james`/`123` now logs into the exe with its
+  dev balance/deck.
+- **Honest auth UI** (`Login.jsx` only, no backend change): Register/Login
+  surface the server's message; rule hint under the inputs. Deliberately did
+  NOT relax the 4-char password minimum.
+- Verified live: james/123 → 200 + carried-over state; wrong password →
+  clean 401 "Invalid login". Backend 80/80, frontend 57/57, lint 0 errors.
+
 ### 2026-09-14 — Sprint: Electron portable exe (local-only)
 
 - **Packaged as portable Windows app** (`release/win-unpacked/CardGame.exe`,

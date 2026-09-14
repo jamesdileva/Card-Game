@@ -19,7 +19,12 @@ export default function Login({ onLogin }) {
         })
       });
 
-      const data = await res.json();
+      let data = {};
+      try {
+        data = await res.json();
+      } catch {
+        data = {};
+      }
 
       // 🔍 DEBUG (same as your old version)
       console.log("🚨 LOGIN ROUTE WITH REWARD HIT");
@@ -39,7 +44,9 @@ export default function Login({ onLogin }) {
         onLogin(); // 🔥 THIS replaces location.href
       } else {
         console.log("❌ LOGIN FAILED", data);
-        alert("Login failed");
+        // Surface the server's verdict ("Invalid login" vs "Invalid input"
+        // vs "Server error") instead of a blanket message.
+        alert(data.error || "Login failed");
       }
 
     } catch (err) {
@@ -48,7 +55,7 @@ export default function Login({ onLogin }) {
   }
 
   async function handleRegister() {
-    await fetch(`${API}/auth/register` , {
+    const res = await fetch(`${API}/auth/register` , {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -56,6 +63,19 @@ export default function Login({ onLogin }) {
         password
       })
     });
+
+    let data = {};
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
+
+    // Never claim success on a rejection ("User exists" / invalid input).
+    if (!res.ok || data.error) {
+      alert(data.error || `Registration failed (status ${res.status})`);
+      return;
+    }
 
     alert("Registered! Now login.");
   }
@@ -92,6 +112,10 @@ export default function Login({ onLogin }) {
       >
         Register
       </button>
+
+      <p className="text-xs text-zinc-500 mt-1">
+        username 3–20 chars (letters, numbers, _) · password 4+ chars
+      </p>
     </div>
   );
 }
