@@ -31,6 +31,7 @@ const {
   sanitizeDeckShape,
   validateDeckOwnership
 } = require("../game/validate");
+const { stackInventory } = require("../game/inventory");
 
 // Insert a reward card into a user's inventory; returns the stored row.
 function insertReward(userId, reward, mutation = 1) {
@@ -111,33 +112,13 @@ router.get("/state", async (req, res) => {
     .prepare("SELECT * FROM users WHERE id=?")
     .get(req.session.userId);
 
-  // ✅ INVENTORY
+  // ✅ INVENTORY — per-row results; stacking happens in stackInventory.
+  // (Never aggregate here: MAX() without GROUP BY collapses to one row.)
   const invResult = db
-    .prepare("SELECT card_id, rarity, mutation, MAX(corrupted) AS corrupted FROM inventory WHERE user_id=?")
+    .prepare("SELECT card_id, rarity, mutation, corrupted FROM inventory WHERE user_id=?")
     .all(req.session.userId);
 
-  const stacked = {};
-
-  invResult.forEach(c => {
-    const id = c.card_id;
-
-    if (!stacked[id]) {
-      stacked[id] = {
-        id,
-        rarity: c.rarity || "common",
-        count: 1,
-        mutation: c.mutation || 1,
-        corrupted: !!c.corrupted
-      };
-    } else {
-      stacked[id].count++;
-      stacked[id].mutation = Math.max(stacked[id].mutation, c.mutation || 1);
-      stacked[id].corrupted = stacked[id].corrupted || !!c.corrupted;
-      stacked[id].corrupted = stacked[id].corrupted || !!c.corrupted;
-    }
-  });
-
-  const inventory = Object.values(stacked);
+  const inventory = stackInventory(invResult);
 
   // ✅ DECK (🔥 FIXED)
   const deckResult = db.prepare(`
@@ -178,31 +159,10 @@ router.get("/inventory", async (req, res) => {
   if (!(await requireLogin(req, res))) return;
 
   const result = db
-    .prepare("SELECT card_id, rarity, mutation, MAX(corrupted) AS corrupted FROM inventory WHERE user_id=?")
+    .prepare("SELECT card_id, rarity, mutation, corrupted FROM inventory WHERE user_id=?")
     .all(req.session.userId);
 
-  const stacked = {};
-
-  result.forEach(c => {
-    const id = c.card_id;
-
-    if (!stacked[id]) {
-      stacked[id] = {
-        id,
-        rarity: c.rarity || "common",
-        count: 1,
-        mutation: c.mutation || 1,
-        corrupted: !!c.corrupted
-      };
-    } else {
-      stacked[id].count++;
-      stacked[id].mutation = Math.max(stacked[id].mutation, c.mutation || 1);
-      stacked[id].corrupted = stacked[id].corrupted || !!c.corrupted;
-      stacked[id].corrupted = stacked[id].corrupted || !!c.corrupted;
-    }
-  });
-
-  res.json({ inventory: Object.values(stacked) });
+  res.json({ inventory: stackInventory(result) });
 });
 
 router.post("/dev-add-card", devOnly, async (req, res) => {

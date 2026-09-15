@@ -8,6 +8,7 @@ import StorePanel from "./components/StorePanel";
 import CoinFlip from "./components/CoinFlip";
 import HiLo from "./components/HiLo";
 import { cardName, synergyTooltip, STAT_TOOLTIPS } from "./components/cardNames";
+import { dwellFor } from "./spinDwell";
 
 export default function SlotMachine() {
   const [balance, setBalance] = useState(0);
@@ -51,6 +52,7 @@ const crateLockRef = useRef(false);
 const upgradeLockRef = useRef(false);
 const autoSpinRef = useRef(autoSpin);
 const spinFnRef = useRef(null);
+const autoTimerRef = useRef(null); // pending chained auto-spin (the dwell)
 const API = "/api"; // same-origin (Vite proxy in dev, single server when packaged)
 const displayBalance = useCountUp(balance);
 const displayPayout = useCountUp(payout, 400);
@@ -338,7 +340,14 @@ let spinInterval = setInterval(() => {
     setReelsMoving(false);
     spinLockRef.current = false;
     if (autoSpinRef.current) {
-      spinFnRef.current();
+      // Dwell on the settled results before chaining — big wins hold longer
+      // (see spinDwell.js). Input is already unlocked; only the chain waits.
+      clearTimeout(autoTimerRef.current);
+      autoTimerRef.current = setTimeout(() => {
+        if (autoSpinRef.current) {
+          spinFnRef.current();
+        }
+      }, dwellFor(data.payout, 100 * multiplier));
     }
   }
 
@@ -443,6 +452,7 @@ useEffect(() => {
 
 // SPIN
         function stopAutoSpin(message) {
+          clearTimeout(autoTimerRef.current);
           if (autoSpinRef.current) {
             autoSpinRef.current = false;
             setAutoSpin(false);
@@ -451,6 +461,7 @@ useEffect(() => {
         }
 
         async function spin() {
+          clearTimeout(autoTimerRef.current); // manual spin cancels a queued chain
           if (spinLockRef.current) return; // 🔒 HARD LOCK
           spinLockRef.current = true;
           setSpinning(true);
@@ -645,13 +656,15 @@ useEffect(() => {
           }
         }
 
-  // AUTO SPIN — chained: next spin fires when the previous one unlocks.
+  // AUTO SPIN — chained: next spin fires after the results have dwelled.
         useEffect(() => {
           autoSpinRef.current = autoSpin;
           if (autoSpin && !spinLockRef.current && !spinning) {
             const t = setTimeout(() => spinFnRef.current(), 0);
             return () => clearTimeout(t);
           }
+          // AUTO off / unmount / game switch: never fire a queued chain.
+          return () => clearTimeout(autoTimerRef.current);
         }, [autoSpin]);
 
   // SET DECK

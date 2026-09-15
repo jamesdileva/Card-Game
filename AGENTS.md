@@ -64,6 +64,34 @@ Notes:
 
 ## Changelog / History
 
+### 2026-09-14 — Fix: inventory collapse + snappier dwell
+
+- **Inventory showed 1 card:** `/state` and `/inventory` ran
+  `MAX(corrupted)` with no `GROUP BY` (regression from `5a0604e`), so
+  SQLite collapsed every inventory to a single row. Data was never lost
+  (78 rows intact). Fix: per-row `corrupted` in both queries + extracted
+  pure `stackInventory()` helper (`backend/game/inventory.js`) used by both
+  routes, with 4 regression tests. Verified live: 10 stacks / 78 cards.
+- **Dwell retune:** 1200/2500ms felt slow → 800/1800ms in `spinDwell.js`
+  (boundary-based tests needed no changes).
+- Verified: backend 84/84, frontend 60/60, lint 0 errors, repacked exe
+  serves the new bundle + full inventory.
+
+### 2026-09-14 — Fix: auto-spin result dwell (tiered)
+
+- **Problem:** auto-spin chained the next spin ~120ms after results landed
+  (results at ~830ms, unlock+chain at ~950ms), so the payout count-up
+  (400ms), floating win (1200ms), winner glow, and toasts never finished
+  displaying.
+- **Fix** (`SlotMachine.jsx` + new `src/spinDwell.js`): input still unlocks
+  at ~950ms (manual spins feel identical), but the auto chain waits out a
+  dwell — 1200ms normally, 2500ms on wins ≥ 5× bet — via `autoTimerRef`.
+  Manual SPIN / STOP / AUTO-off / game-switch clear the queued chain, so no
+  double-fires or stray spins. Threshold helper `dwellFor(payout, bet)` is
+  unit-tested (3 tests). Backend untouched.
+- Verified: frontend 60/60 (8 files), lint 0 errors, build passes, backend
+  80/80, repacked exe serves the new bundle.
+
 ### 2026-09-14 — Fix: packaged-app login + account carry-over
 
 - **Root cause of "Login failed" in the exe:** the packaged app uses a fresh
