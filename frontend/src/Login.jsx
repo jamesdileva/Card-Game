@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 // Same-origin API: the dev server proxies /api → localhost:3000 (see
 // vite.config.js) and packaged/single-server builds serve API + renderer
 // from one origin.
@@ -6,8 +6,13 @@ const API = "/api";
 export default function Login({ onLogin }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  // Inline form notice — blocking alert() dialogs steal window focus in the
+  // desktop app, leaving the inputs apparently untypeable afterwards.
+  const [notice, setNotice] = useState(null); // { text, isError } | null
+  const passwordRef = useRef(null);
 
   async function handleLogin() {
+    setNotice(null);
     try {
       const res = await fetch(`${API}/auth/login`, {
         method: "POST",
@@ -46,15 +51,18 @@ export default function Login({ onLogin }) {
         console.log("❌ LOGIN FAILED", data);
         // Surface the server's verdict ("Invalid login" vs "Invalid input"
         // vs "Server error") instead of a blanket message.
-        alert(data.error || "Login failed");
+        setNotice({ text: data.error || "Login failed", isError: true });
+        passwordRef.current?.focus();
       }
 
     } catch (err) {
       console.error("Login error:", err);
+      setNotice({ text: "Connection error — please try again.", isError: true });
     }
   }
 
   async function handleRegister() {
+    setNotice(null);
     const res = await fetch(`${API}/auth/register` , {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -73,11 +81,11 @@ export default function Login({ onLogin }) {
 
     // Never claim success on a rejection ("User exists" / invalid input).
     if (!res.ok || data.error) {
-      alert(data.error || `Registration failed (status ${res.status})`);
+      setNotice({ text: data.error || `Registration failed (status ${res.status})`, isError: true });
       return;
     }
 
-    alert("Registered! Now login.");
+    setNotice({ text: "Registered! Now login.", isError: false });
   }
 
   return (
@@ -93,6 +101,7 @@ export default function Login({ onLogin }) {
 
       <input
         type="password"
+        ref={passwordRef}
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         placeholder="Password"
@@ -116,6 +125,15 @@ export default function Login({ onLogin }) {
       <p className="text-xs text-zinc-500 mt-1">
         username 3–20 chars (letters, numbers, _) · password 4+ chars
       </p>
+
+      {notice && (
+        <p
+          role="alert"
+          className={`text-sm font-semibold ${notice.isError ? "text-red-400" : "text-green-400"}`}
+        >
+          {notice.text}
+        </p>
+      )}
     </div>
   );
 }

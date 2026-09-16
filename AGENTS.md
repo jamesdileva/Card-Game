@@ -64,6 +64,33 @@ Notes:
 
 ## Changelog / History
 
+### 2026-09-14 — Fix: coins-drop spin crash + silent manual failures
+
+- **One bug, two symptoms:** every coins bonus drop (~7% of spins) 500'd
+  with `TypeError: Assignment to constant variable` — `const newBalance`
+  reassigned at the `+= dropInfo.amount` line (log showed 9 crashes in
+  90s of auto-spin). Auto-spin halted with "…Server error"; manual spins
+  died silently (`data.error` only hit console + auto-only toast).
+- **Fix:** `let newBalance` (sibling routes audited clean) + toast
+  `data.error` on manual spins (covers 500s and "Not enough balance").
+- Verified live in exe: 50 spins, 0 errors, 4 coins drops with exact
+  balance math; no new backend-error lines. Backend 84/84, frontend
+  64/64, lint 0 errors, repacked.
+
+### 2026-09-14 — Fix: login focus freeze after failed attempts
+
+- **Symptom:** after a wrong password, the "Invalid login" blocking
+  `alert()` deactivated the app window in Electron — fields wouldn't
+  focus/type until clicking back in. Code confirmed the inputs are never
+  disabled; it was native-dialog focus theft.
+- **Fix** (`Login.jsx` only): inline `role="alert"` notice under the buttons
+  replaces both `alert()`s (register success is inline green now too);
+  failed login focuses the password field; the silent network-error catch
+  shows "Connection error". New `Login.test.jsx` (4 tests incl. inputs stay
+  enabled/typeable + retry goes through after a 401).
+- Verified: frontend 64/64 (9 files), lint 0 errors, build passes, backend
+  84/84 untouched, repacked exe serves the new bundle, james/123 login OK.
+
 ### 2026-09-14 — Fix: inventory collapse + snappier dwell
 
 - **Inventory showed 1 card:** `/state` and `/inventory` ran

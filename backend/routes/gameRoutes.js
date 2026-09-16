@@ -400,7 +400,8 @@ router.post("/spin", async (req, res) => {
     event
   });
 
-  const newBalance = user.balance - bet + finalPayout;
+  // NOTE: `let`, not `const` — the coins drop below adds to it.
+  let newBalance = user.balance - bet + finalPayout;
 
   // --- 🎁 SPIN BONUS DROP ---
   const drop = rollSpinDrop({ luck: effects.luck });

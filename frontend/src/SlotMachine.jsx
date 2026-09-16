@@ -490,6 +490,11 @@ useEffect(() => {
             if (data.error) {
               console.error(data.error);
               stopAutoSpin(`Auto-spin stopped — ${data.error}`);
+              // Manual spins have no other feedback — surface it, otherwise
+              // the click appears to do nothing (e.g. a 500 or low balance).
+              if (!autoSpinRef.current) {
+                setToast(data.error);
+              }
               spinLockRef.current = false;
               setSpinning(false);
               setReelsMoving(false);
