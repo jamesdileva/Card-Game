@@ -4,6 +4,7 @@
 |-----|----------|
 | [architecture.md](architecture.md) | System structure, data flow, database schema, deployment |
 | [game-design.md](game-design.md) | Slot odds/RTP, cards, crates, economy balance, build archetypes |
+| [cards-and-sets.md](cards-and-sets.md) | Card catalog, set bonuses, evolution/mutation/corruption (code-accurate reference) |
 | [api.md](api.md) | HTTP API reference (as implemented) |
 | [roadmap.md](roadmap.md) | Known debt/bugs + feature phases |
 | [integration.md](integration.md) | Sentinel integration checklist & facts |

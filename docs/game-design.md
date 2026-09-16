@@ -10,33 +10,44 @@ modified by an equippable deck of utility cards collected from crates.
 
 ## Gambling Games
 
-- **Slot machine** — main system (implemented; 5 reels in the current build)
-- Coin Flip — planned
-- 0–100 High/Low — planned
+- **Slot machine** — main system (5 reels in the current build)
+- **Coin Flip** — shipped: 50/50 pick, even money (2× total return on win).
+  Deck payout multipliers / player boosts do NOT apply (would break even
+  odds); streak bonus and flat synergy bonuses do
+- **0–100 High/Low** — shipped: free base roll 1–100, bet strictly
+  higher/lower; **ties lose**. Payout is fair odds × 0.95 (up to 95× on a
+  single-outcome pick); impossible sides rejected. Same deck-effect policy
+  as Coin Flip
 
 All games are affected by utility card decks.
 
-## Slot Machine Balance Targets
+## Slot Machine Balance (as implemented)
 
-### Symbol odds (per reel)
+### Reels and base payout
 
-| Symbol | Tier    | Chance |
-|--------|---------|--------|
-| 🍒     | Common  | 35%    |
-| 🍋     | Common  | 30%    |
-| 🔷     | Rare    | 20%    |
-| ⭐     | Epic    | 10%    |
-| ⚡     | Jackpot | 5%     |
+5 reels, 8 symbols each rolled uniformly: cherry, lemon, orange, grape,
+clover, gem, star, crown. Base payout (at bet 100) is by unique-symbol
+count — fewer unique symbols pay more:
 
-### Match probabilities & payouts (3-of-a-kind)
+| Unique symbols | Base payout |
+|----------------|-------------|
+| 1 (all match)  | 1000        |
+| 2              | 500         |
+| 3              | 200         |
+| 4–5            | 0 (loss, may trigger reroll) |
 
-| Combo   | Chance   | Payout |
-|---------|----------|--------|
-| 🍒🍒🍒 | ~4.3%    | 2x     |
-| 🍋🍋🍋 | ~2.7%    | 3x     |
-| 🔷🔷🔷 | ~0.8%    | 6x     |
-| ⭐⭐⭐ | ~0.1%    | 15x    |
-| ⚡⚡⚡ | ~0.0125% | 100x   |
+The payout chain then applies, in order: bet scaling → deck multiplier →
+player boost → win-streak bonus → synergy flat bonus → jackpot surge proc
+(winning spins may pay ×5) → DOUBLE_PAYOUT event doubling.
+
+Luck (`lucky_charm`, `wild_symbol`, Chaos Engine…) works two ways: after
+the roll, up to 12% chance to harmonize one reel toward another (fewer
+uniques), and it widens the spin bonus-drop window below.
+
+### Random events (15% per spin)
+
+💰 DOUBLE_PAYOUT (winnings ×2) · ⚡ DOUBLE_XP (XP ×2) · 🍀 LUCK SURGE
+(+50% Luck this spin). Events never mutate the displayed deck effects.
 
 ### RTP target
 
@@ -56,54 +67,44 @@ Deck effects must never break the economy:
 
 ## Card System
 
-Utility cards modify RNG, payouts, and rewards. Planned future: battle cards
-(same cards, dual purpose).
+Utility cards modify RNG, payouts, and rewards. The 3-card deck's effects
+stack; combinations unlock set bonuses.
 
-### The 10 starter utility cards
+> Full code-accurate reference (all cards, all 16 sets, evolution /
+> mutation / corruption): [cards-and-sets.md](cards-and-sets.md). The table
+> below is the original design sketch — several listed cards were never
+> implemented; treat the new page as canonical.
 
-| Category   | Card              | Effect                                  |
-|------------|-------------------|-----------------------------------------|
-| Probability | Lucky Charm      | +3% rare symbol chance                  |
-| Probability | Reel Bias        | Slightly favors matching symbols        |
-| Outcome    | Double Down       | 10% chance to double winnings           |
-| Outcome    | Safety Net        | Refund 20% on losses                    |
-| Reel       | Sticky Symbols    | Winning symbols stay for 1 spin         |
-| Reel       | Bonus Reel        | 5% chance to add an extra reel          |
-| Trigger    | Loss Streak Saver | After 3 losses → boosted next spin      |
-| Trigger    | Hot Streak        | Consecutive wins increase multiplier    |
-| Chaos      | Glitch Engine     | Randomizes outcomes slightly            |
-| Chaos      | Jackpot Surge     | Tiny chance for massive payout          |
+### Card catalog and sets
 
-Some cards also apply to crates (Lucky Charm → better drop rates,
-Double Down → extra crate rewards, Glitch Engine → random bonus items).
+See [cards-and-sets.md](cards-and-sets.md) — the table that used to live
+here described pre-implementation design concepts (Reel Bias, Sticky
+Symbols, Bonus Reel, Loss Streak Saver, Glitch Engine were never built)
+and has been retired in favor of the code-accurate reference.
 
 ## Crates
 
-Five types:
+Five types (2 picks each; all can contain a bonus crate-in-crate):
 
-| Crate           | Cost (target) | Character                              |
-|-----------------|---------------|----------------------------------------|
-| 🟡 Basic        | 100           | Mostly common cards                    |
-| 🔵 Premium      | 300           | Better odds, some rares                |
-| 🟣 Slot Crate   | 500 / drop    | Rare drop from slots, high-value       |
-| 🔴 Corrupted    | 700           | High variance: trash 30% / good 50% / insane 20% |
-| ⏳ Timed        | 400           | Takes time to open; +5% odds or guaranteed rare+ |
-
-### Drop rate targets
-
-- Basic: common 70% / rare 25% / epic 5%
-- Premium: common 40% / rare 45% / epic 13% / legendary 2%
-- Slot Crate: rare 40% / epic 40% / legendary 18% / jackpot item 2%
+| Crate           | Cost | Pool                         | Crate-in-crate |
+|-----------------|------|------------------------------|----------------|
+| 🟡 Basic        | 100  | common/common/rare           | 4%             |
+| 🔵 Premium      | 250  | common/rare/epic             | 6%             |
+| 🟣 Elite        | 500  | rare/epic/legendary          | 8%             |
+| 🔴 Corrupted    | 700  | Trash 30% (1 common) / high tier 50% (rares+epics) / insane 20% (legendaries); each reward 35% to be a corrupted variant (×2 effect, −XP while equipped) | 10% |
+| ⏳ Timed        | 400  | Guaranteed rare+ (rare/rare/epic/legendary); unlocks 2 min after purchase, one pending at a time | 10% |
 
 ### Slot spin bonus drops (per spin)
 
-Nothing 90% / small coin bonus 7% / slot crate 2.5% / jackpot crate 0.5%
+Nothing ~90% / coins ~7% (0.5–2× bet) / random card ~2% / free Elite
+pull ~1%. Deck Luck shifts up to +8 points from "nothing" into drops.
 
 ### Special mechanics
 
-- **Crate-in-Crate:** chance to pull another crate
-- **Jackpot Drop:** spins can drop coins, cards, or slot crates
-- **Corruption:** increased rarity OR chaotic outcomes (crates now, cards later)
+- **Crate-in-crate:** chance to pull another crate (rates above)
+- **Jackpot Drop:** spins can drop coins, cards, or a free Elite pull
+- **Corruption:** corrupted-crate rewards roll corrupted variants (see
+  [cards-and-sets.md](cards-and-sets.md))
 
 ## Currency Flow Model
 
@@ -124,12 +125,12 @@ level-up rewards so the net experience feels balanced.
 
 ## Build Archetypes
 
-| Build        | Playstyle               | Key cards                       |
-|--------------|-------------------------|---------------------------------|
-| High Roller  | Big wins, big losses    | Jackpot Surge, Double Down      |
-| Safe Grinder | Consistent small wins   | Safety Net, Lucky Charm         |
-| Chaos        | Unpredictable outcomes  | Glitch Engine, corruption       |
-| Combo        | Streak-focused          | Hot Streak, Loss Streak Saver   |
+| Build        | Playstyle               | Key cards / sets                              |
+|--------------|-------------------------|-----------------------------------------------|
+| High Roller  | Big wins, big losses    | Mythic Multiplier, Jackpot Surge, Vault Buster |
+| Safe Grinder | Consistent small wins   | Safety Net, Reroll, Safety Inspector          |
+| Chaos        | Unpredictable outcomes  | Wild Symbol, Jackpot Surge, Chaos Engine, corruption |
+| Combo        | Streak-focused          | Hot Streak, Multiplier Chain, Steady Burn     |
 
 ## Progression (implemented)
 
@@ -141,6 +142,3 @@ level-up rewards so the net experience feels balanced.
 ## Future Expansion
 
 - ⚔️ Battle system — cards become playable units (dual-use)
-- 🧬 Card evolution — merge duplicates, mutations
-- Coinflip + High/Low games
-- All five crate types + modifiers

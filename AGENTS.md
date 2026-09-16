@@ -64,6 +64,24 @@ Notes:
 
 ## Changelog / History
 
+### 2026-09-16 — Docs: cards-and-sets reference + game-design refresh
+
+- **New `docs/cards-and-sets.md`** (linked from docs index): code-accurate
+  catalog of all 10 cards (rarity, equipped effect, crate weight) + all 16
+  set bonuses (pairs / count / mixed / god / archetypes) + evolution /
+  mutation / corruption explainers. Numbers verified against `cards.js`,
+  `effects.js`, `spin.js`, `crates.js`, `evolution.js`.
+- **`game-design.md` refreshed:** slot math rewritten to the real engine
+  (8 uniform symbols, unique-count base payouts, payout chain, 15% random
+  events); Coin Flip + Hi-Lo marked shipped; crate table corrected
+  (Premium is 250, Elite not "Slot Crate", real pools + crate-in-crate
+  rates); fictional card table retired to a pointer; shipped items dropped
+  from Future Expansion; archetypes use real cards/sets.
+- **Drift guard** (`backend/test/docs.test.js`): asserts every catalog id
+  and every synergy label brute-forced out of `calculateSynergies` (all
+  3-slot combos) appears in the new page.
+- Verified: backend 86/86 (84 + 2 new). Frontend untouched.
+
 ### 2026-09-14 — Fix: coins-drop spin crash + silent manual failures
 
 - **One bug, two symptoms:** every coins bonus drop (~7% of spins) 500'd
