@@ -5,6 +5,7 @@ import Card from "./components/Card";
 import DeckPanel from "./components/DeckPanel";
 import InventoryPanel from "./components/InventoryPanel";
 import StorePanel from "./components/StorePanel";
+import SetsPanel from "./components/SetsPanel";
 import CoinFlip from "./components/CoinFlip";
 import HiLo from "./components/HiLo";
 import { cardName, synergyTooltip, STAT_TOOLTIPS } from "./components/cardNames";
@@ -779,7 +780,8 @@ useEffect(() => {
   const tabs = [
     { id: "deck", label: "🎴 Deck" },
     { id: "inventory", label: "🧳 Inventory" },
-    { id: "store", label: "🛒 Store" }
+    { id: "store", label: "🛒 Store" },
+    { id: "sets", label: "🧩 Sets" }
   ];
 
   return (
@@ -1130,6 +1132,9 @@ useEffect(() => {
             pendingCrate={pendingCrate}
             busy={storeBusy}
           />
+        )}
+        {activeTab === "sets" && (
+          <SetsPanel activeSynergies={effects.synergies || []} />
         )}
       </aside>
 

@@ -64,6 +64,20 @@ Notes:
 
 ## Changelog / History
 
+### 2026-09-16 — In-app Sets reference tab
+
+- **New 🧩 Sets tab** next to Deck/Inventory/Store: every set grouped
+  (pairs / count / mixed / god / archetypes) with required cards + effect,
+  reusing the tooltip `SYNERGY_EFFECTS` strings as the single source of
+  truth (new `group` field; `synergyKey` exported for active matching).
+  Currently-equipped sets highlight with an ACTIVE badge via
+  `effects.synergies`.
+- Tests: new `SetsPanel.test.jsx` (groups, req/effect text, active badge
+  scoping incl. the Triple Mythic leading-space quirk) + extended
+  `cardNames.test.js` (16 entries, req/fx/group filled).
+- Verified: frontend 70/70 (10 files), lint 0 errors, build passes,
+  backend untouched, repacked exe serves the new tab.
+
 ### 2026-09-16 — Docs: cards-and-sets reference + game-design refresh
 
 - **New `docs/cards-and-sets.md`** (linked from docs index): code-accurate

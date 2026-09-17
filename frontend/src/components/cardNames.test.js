@@ -6,6 +6,8 @@ import {
   nextRarity,
   MERGE_COST,
   synergyTooltip,
+  synergyKey,
+  SYNERGY_EFFECTS,
   STAT_TOOLTIPS
 } from "./cardNames";
 
@@ -108,6 +110,30 @@ describe("synergyTooltip", () => {
     // description separator, so nothing fell through.
     expect(text.split("\n")).toHaveLength(backendLabels.length);
     text.split("\n").forEach((line) => expect(line).toContain("·"));
+  });
+});
+
+describe("SYNERGY_EFFECTS (Sets tab source)", () => {
+  const GROUPS = ["pair", "count", "mixed", "god", "archetype"];
+
+  it("covers every synergy the backend can emit", () => {
+    expect(Object.keys(SYNERGY_EFFECTS)).toHaveLength(16);
+  });
+
+  it("fills req, fx, and group on every entry", () => {
+    Object.entries(SYNERGY_EFFECTS).forEach(([name, info]) => {
+      expect(info.req, `${name} req`).toBeTruthy();
+      expect(info.fx, `${name} fx`).toBeTruthy();
+      expect(GROUPS, `${name} group`).toContain(info.group);
+    });
+  });
+
+  it("normalizes backend labels to map keys", () => {
+    expect(synergyKey("🍀 Lucky Jackpot")).toBe("Lucky Jackpot");
+    expect(synergyKey(" Triple Mythic")).toBe("Triple Mythic");
+    expect(SYNERGY_EFFECTS[synergyKey("🛡️ Safety Inspector")].req).toContain(
+      "Safety Net"
+    );
   });
 });
 

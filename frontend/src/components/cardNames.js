@@ -60,52 +60,87 @@ export function nextRarity(rarity) {
 // Set/synergy descriptions (kept in sync with backend/game/effects.js).
 // Keyed by trimmed label — one backend label ("Triple Mythic") carries a
 // stray leading space, trimming makes lookups robust to that quirk.
-const SYNERGY_EFFECTS = {
+// `group` drives the Sets reference tab; keep all three fields filled.
+export const SYNERGY_EFFECTS = {
   "Lucky Jackpot": {
     req: "Lucky Charm + Jackpot Boost",
-    fx: "payout ×1.5, +10% Luck"
+    fx: "payout ×1.5, +10% Luck",
+    group: "pair"
   },
   "Chain Reroll": {
     req: "Reroll + Multiplier Chain",
-    fx: "+20% reroll chance, payout ×1.3"
+    fx: "+20% reroll chance, payout ×1.3",
+    group: "pair"
   },
-  "Mythic Double": { req: "Double Down + Mythic Multiplier", fx: "payout ×2" },
+  "Mythic Double": {
+    req: "Double Down + Mythic Multiplier",
+    fx: "payout ×2",
+    group: "pair"
+  },
   "Triple Mythic": {
     req: "3× Mythic Multiplier",
-    fx: "payout +7x, +20% Luck"
+    fx: "payout +7x, +20% Luck",
+    group: "count"
   },
-  "Lucky Pair": { req: "2× Lucky Charm", fx: "+30% reroll chance" },
-  "Reroll Engine": { req: "2× Reroll", fx: "+50% reroll chance" },
+  "Lucky Pair": {
+    req: "2× Lucky Charm",
+    fx: "+30% reroll chance",
+    group: "count"
+  },
+  "Reroll Engine": {
+    req: "2× Reroll",
+    fx: "+50% reroll chance",
+    group: "count"
+  },
   "Luck Engine": {
     req: "Lucky Charm + Reroll",
-    fx: "+25% reroll chance, +20% Luck"
+    fx: "+25% reroll chance, +20% Luck",
+    group: "mixed"
   },
   "Chain Scaling": {
     req: "2× Multiplier Chain",
-    fx: "payout +1x, XP gain +50%"
+    fx: "payout +1x, XP gain +50%",
+    group: "mixed"
   },
   "Wild Surge": {
     req: "2× Wild Symbol",
-    fx: "+$300 flat bonus on winning spins"
+    fx: "+$300 flat bonus on winning spins",
+    group: "mixed"
   },
-  "Jackpot Overload": { req: "2× Jackpot Boost", fx: "payout +2x" },
+  "Jackpot Overload": {
+    req: "2× Jackpot Boost",
+    fx: "payout +2x",
+    group: "mixed"
+  },
   "GOD BUILD": {
     req: "Mythic Multiplier + Jackpot Boost + Multiplier Chain",
-    fx: "payout ×2, +50% Luck"
+    fx: "payout ×2, +50% Luck",
+    group: "god"
   },
   "Safety Inspector": {
     req: "Safety Net + Reroll",
-    fx: "refund +12% of bet, +15% reroll chance"
+    fx: "refund +12% of bet, +15% reroll chance",
+    group: "archetype"
   },
   "Surge Rider": {
     req: "Hot Streak + Jackpot Surge",
-    fx: "surge chance +3%, streak rate +1%"
+    fx: "surge chance +3%, streak rate +1%",
+    group: "archetype"
   },
-  "Vault Buster": { req: "Jackpot Boost + Jackpot Surge", fx: "payout ×1.5" },
-  "Chaos Engine": { req: "Wild Symbol + Jackpot Surge", fx: "+40% Luck" },
+  "Vault Buster": {
+    req: "Jackpot Boost + Jackpot Surge",
+    fx: "payout ×1.5",
+    group: "archetype"
+  },
+  "Chaos Engine": {
+    req: "Wild Symbol + Jackpot Surge",
+    fx: "+40% Luck",
+    group: "archetype"
+  },
   "Steady Burn": {
     req: "Safety Net + Hot Streak",
-    fx: "refund +5% of bet, streak rate +2%"
+    fx: "refund +5% of bet, streak rate +2%",
+    group: "archetype"
   }
 };
 
@@ -121,7 +156,8 @@ export const STAT_TOOLTIPS = {
 
 // Backend labels are emoji-prefixed ("🛡️ Safety Inspector") and one carries
 // a stray leading space ("Triple Mythic"); normalize to bare words for lookup.
-function synergyKey(label) {
+// Exported for the Sets reference tab (active-set highlighting).
+export function synergyKey(label) {
   return String(label)
     .trim()
     .replace(/^[^\p{L}\p{N}]+/u, "")
