@@ -88,8 +88,17 @@ export default function Login({ onLogin }) {
     setNotice({ text: "Registered! Now login.", isError: false });
   }
 
+  // Enter in either field submits the login (Register stays click-only).
+  function handleFormSubmit(e) {
+    e.preventDefault();
+    handleLogin();
+  }
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-900 text-white gap-3">
+    <form
+      onSubmit={handleFormSubmit}
+      className="min-h-screen flex flex-col items-center justify-center bg-zinc-900 text-white gap-3"
+    >
       <h1 className="text-2xl font-bold mb-2">Login</h1>
 
       <input
@@ -109,13 +118,14 @@ export default function Login({ onLogin }) {
       />
 
       <button
-        onClick={handleLogin}
+        type="submit"
         className="bg-green-500 hover:bg-green-600 px-6 py-2 rounded-xl font-bold"
       >
         Login
       </button>
 
       <button
+        type="button"
         onClick={handleRegister}
         className="bg-blue-500 hover:bg-blue-600 px-6 py-2 rounded-xl font-bold"
       >
@@ -134,6 +144,6 @@ export default function Login({ onLogin }) {
           {notice.text}
         </p>
       )}
-    </div>
+    </form>
   );
 }

@@ -144,10 +144,10 @@ const stopSpinSound = () => {
   const spin = spinSoundRef.current;
   if (!ctx || !spin) return;
 
-  // 🌫️ smooth fade
+  // 🌫️ smooth fade (short — the whir should end with the last reel)
   spin.gain.gain.exponentialRampToValueAtTime(
     0.0001,
-    ctx.currentTime + 0.2
+    ctx.currentTime + 0.12
   );
 
   // 🛑 FULL STOP
@@ -165,7 +165,7 @@ const stopSpinSound = () => {
     }
 
     spinSoundRef.current = null; // 🔥 important
-  }, 250);
+  }, 150);
 };
 const playTick = (isFinal = false, index = 0) => {
   const ctx = audioCtxRef.current;
@@ -278,18 +278,22 @@ let spinInterval = setInterval(() => {
     // 🎯 stagger stop
     data.reels.forEach((symbol, i) => {
       setTimeout(() => {
+        const isFinal = i === data.reels.length - 1;
+        // Audio runs on the timeout clock — NOT inside the state updater —
+        // so ticks land with the visual stops instead of chasing React's
+        // flush (updaters can lag a frame or more, and double-fire in dev).
+        playTick(isFinal, i);
+        if (isFinal) {
+          stopSpinSound();
+        }
         setReels(prev => {
-          playTick(i === data.reels.length - 1, i);
-          if (i === data.reels.length - 1) {
-            stopSpinSound(); // 🔥 MUST be here
-          }
           const updated = [...prev];
           updated[i] = symbol;
           return updated;
         });
 
           // ✅ final reel = apply results
-        if (i === data.reels.length - 1) {
+        if (isFinal) {
           setReelsMoving(false); // stop the blur before the unlock timer
           setBalance(data.balance);
           setPayout(data.payout);
@@ -301,7 +305,6 @@ let spinInterval = setInterval(() => {
 
           const wins = getWinningIndices(data.reels);
           setWinningIndices(wins);
-          stopSpinSound();
           if (data.payout > 0) {
             setFloatingWin({ amount: data.payout, id: Date.now() });
           }
@@ -463,6 +466,9 @@ useEffect(() => {
 
         async function spin() {
           clearTimeout(autoTimerRef.current); // manual spin cancels a queued chain
+          // The AudioContext starts suspended until a gesture wakes it; timer
+          // callbacks can't un-suspend it, so resume on the gesture path.
+          audioCtxRef.current?.resume?.().catch(() => {});
           if (spinLockRef.current) return; // 🔒 HARD LOCK
           spinLockRef.current = true;
           setSpinning(true);

@@ -99,4 +99,22 @@ describe("Login failure UX", () => {
     fireEvent.click(screen.getByRole("button", { name: "Login" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Connection error");
   });
+
+  it("submits the login on form submit (Enter key)", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: "logged_in", loginReward: 0, loginStreak: 1 })
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const onLogin = vi.fn();
+    const { container } = render(<Login onLogin={onLogin} />);
+    fillCredentials("james", "123");
+
+    fireEvent.submit(container.querySelector("form"));
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toContain("/auth/login");
+    await vi.waitFor(() => expect(onLogin).toHaveBeenCalledTimes(1));
+  });
 });

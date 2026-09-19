@@ -64,6 +64,23 @@ Notes:
 
 ## Changelog / History
 
+### 2026-09-16 — Enter-to-login + sound timing polish
+
+- **Enter submits the login:** the login inputs are now a real `<form>`
+  (Login `type="submit"`, Register `type="button"`), so Enter works from
+  either field. New submit test in `Login.test.jsx` (5 tests).
+- **Sound timing:** reel-stop ticks + `stopSpinSound` were scheduled from
+  *inside* the `setReels` updater, so audio chased React's flush a frame+
+  behind the visual stops (and double-fired under dev StrictMode). Now
+  called directly on the timeout clock before a side-effect-free updater.
+  Also: `AudioContext.resume()` on the spin gesture (context starts
+  suspended; timer callbacks can't wake it), stop fade 200→120ms
+  (disconnect 250→150ms) so the whir ends with the last reel, and the
+  duplicate final-reel `stopSpinSound` removed.
+- Verified: frontend 71/71 (11 files), lint 0 errors, build passes,
+  backend untouched, repacked exe serves the new bundle. Ear-check in the
+  exe still recommended (jsdom has no AudioContext).
+
 ### 2026-09-16 — In-app Sets reference tab
 
 - **New 🧩 Sets tab** next to Deck/Inventory/Store: every set grouped
