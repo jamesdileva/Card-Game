@@ -19,7 +19,7 @@ authenticated session (register/login first). Base URL: `/api`.
 
 | Method | Path         | Returns |
 |--------|--------------|---------|
-| GET    | `/state`      | Full game state: balance, level, xp, boosts, streaks, deck |
+| GET    | `/state`      | Full game state: balance, level, xp, boosts, streaks, deck, stacked inventory, `pendingCrates` (unopened timed/bonus crates) |
 | GET    | `/inventory`  | Owned cards (one entry per copy) |
 | GET    | `/deck`       | Active deck slots |
 | GET    | `/progression`| Level/upgrade info |
@@ -32,7 +32,7 @@ authenticated session (register/login first). Base URL: `/api`.
 | POST   | `/coinflip`       | `{ bet, choice }` — `choice` must be `"heads"` or `"tails"`; same bet validation. 50/50 even money; deck streak bonus and flat synergy bonuses apply, payout multipliers deliberately do not |
 | POST   | `/highlow`        | `{ action }`: `"start"` rolls a 1–100 base number into your session (free); `"guess"` needs `{ direction: "higher"\|"lower", bet }` against that number. Strictly over/under wins, ties lose; payout is fair odds × 0.95 scaled by winning outcomes (1 outcome → 95x). The roll becomes the next round's base |
 | POST   | `/set-deck`       | `{ newDeck: [cardId|null, …] }` — **server-side validation**: shape (≤3 slots) and ownership/copy-count checks against inventory (400 on violation). No longer trusts the client |
-| POST   | `/open-crate`     | `{ type }` — `basic` ($100), `premium` ($250), `elite` ($500), `corrupted` ($700, high variance: trash 30% / high-tier 50% / insane 20%), `timed` ($400). All crates can trigger crate-in-crate (4–10% by tier): response includes `bonusRewards`. **Timed flow**: first call buys → `{ pending: true, unlockAt }` (2 min); re-calling while locked → 400 with `remainingSeconds`; after unlock the same call opens it (guaranteed rare+) and clears the slot |
+| POST   | `/open-crate`     | `{ type }` and/or `{ pendingId }` — `basic` ($100), `premium` ($250), `elite` ($500), `corrupted` ($700, high variance: trash 30% / high-tier 50% / insane 20%), `timed` ($400). All crates can trigger crate-in-crate (4–10% by tier): response includes `bonusRewards`. Every response carries the updated `pendingCrates` list. **Pending flow** (`pending_crate` column holds a JSON *array* of `{ id, type, unlockAt }`): timed first call buys → `{ pending: true, pendingId, unlockAt }` (2 min, one timed pending at a time); re-calling while locked → 400 with `remainingSeconds`; ready entries open via `{ pendingId }` (404 unknown, 400 still locked). Spin bonus drops append an already-unlocked `elite` entry instead of opening on the spot |
 | POST   | `/evolve`         | `{ cardId }` — merges 3 owned copies into one **random card of the next rarity** with a random **mutation** (✦5–25% stronger effect for that card id everywhere). Legendary is terminal. Validated server-side; transactional. Response includes `mutation` |
 | POST   | `/upgrade/payout` | Purchases payout boost upgrade |
 | POST   | `/upgrade/xp`     | Purchases XP boost upgrade |

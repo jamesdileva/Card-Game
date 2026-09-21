@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 function formatSeconds(total) {
   const m = Math.floor(total / 60);
@@ -10,20 +10,28 @@ export default function StorePanel({
   onUpgradeXP,
   onUpgradePayout,
   onOpenCrate,
-  pendingCrate,
+  pendingCrates = [],
   busy = false
 }) {
   const [now, setNow] = useState(() => Date.now());
+  const pending = useMemo(() => pendingCrates || [], [pendingCrates]);
 
   useEffect(() => {
-    if (!pendingCrate?.unlockAt) return undefined;
+    if (!pending.some((c) => c.unlockAt && c.unlockAt > Date.now())) {
+      return undefined;
+    }
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
-  }, [pendingCrate]);
+  }, [pending]);
+
+  // The timed crate keeps its single-slot UX (one timed pending at a time);
+  // free bonus pulls surface separately below so the two never collide.
+  const timedEntry = pending.find((c) => c.type === "timed") || null;
+  const bonusEntries = pending.filter((c) => c.type !== "timed");
 
   const remaining =
-    pendingCrate?.unlockAt != null
-      ? Math.max(0, Math.ceil((pendingCrate.unlockAt - now) / 1000))
+    timedEntry?.unlockAt != null
+      ? Math.max(0, Math.ceil((timedEntry.unlockAt - now) / 1000))
       : null;
   const timedReady = remaining !== null && remaining <= 0;
 
@@ -109,10 +117,18 @@ export default function StorePanel({
           {crates.map((crate) => {
             const timedLocked =
               crate.type === "timed" && remaining !== null && !timedReady;
+            const openPendingId =
+              crate.type === "timed" && timedReady && timedEntry
+                ? timedEntry.id
+                : null;
             return (
               <button
                 key={crate.type}
-                onClick={() => onOpenCrate(crate.type)}
+                onClick={() =>
+                  openPendingId
+                    ? onOpenCrate(null, openPendingId)
+                    : onOpenCrate(crate.type)
+                }
                 disabled={busy || timedLocked}
                 className={`py-2 rounded-lg text-xs font-bold transition flex flex-col items-center
                   ${crate.style}
@@ -126,6 +142,40 @@ export default function StorePanel({
           })}
         </div>
       </div>
+
+      {bonusEntries.length > 0 && (
+        <div>
+          <div className="text-sm text-zinc-400 mb-2">
+            📦 Unopened bonus pulls
+          </div>
+          <div className="flex flex-col gap-2">
+            {bonusEntries.map((entry) => (
+              <div
+                key={entry.id}
+                className="flex items-center justify-between gap-2 rounded-lg bg-zinc-900/60 px-3 py-2"
+              >
+                <span className="text-xs font-bold text-yellow-200">
+                  {(crates.find((c) => c.type === entry.type)?.label ||
+                    entry.type).toUpperCase()}{" "}
+                  — free pull
+                </span>
+                <button
+                  onClick={() => onOpenCrate(null, entry.id)}
+                  disabled={busy}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition
+                    ${busy
+                      ? "bg-zinc-600 cursor-not-allowed"
+                      : "bg-green-500 hover:bg-green-400 text-black animate-pulse"
+                    }
+                  `}
+                >
+                  OPEN
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

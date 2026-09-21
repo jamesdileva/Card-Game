@@ -32,6 +32,14 @@ const {
   validateDeckOwnership
 } = require("../game/validate");
 const { stackInventory } = require("../game/inventory");
+const {
+  readPendingCrates,
+  writePendingCrates,
+  findPendingCrate,
+  addPendingCrate,
+  removePendingCrate,
+  makePendingId
+} = require("../game/pendingCrates");
 
 // Insert a reward card into a user's inventory; returns the stored row.
 function insertReward(userId, reward, mutation = 1) {
@@ -151,7 +159,7 @@ router.get("/state", async (req, res) => {
     inventory,
     deck,          // 🔥 NOW CORRECT
     effects,
-    pendingCrate: user.pending_crate ? JSON.parse(user.pending_crate) : null
+    pendingCrates: readPendingCrates(user.pending_crate)
   });
 });
 
@@ -364,7 +372,7 @@ router.post("/spin", async (req, res) => {
   });
   // --- GET USER ---
   const user = db.prepare(`
-    SELECT balance, xp, level, payout_boost, xp_boost, win_streak, last_rewarded_level
+    SELECT balance, xp, level, payout_boost, xp_boost, win_streak, last_rewarded_level, pending_crate
     FROM users
     WHERE id = ?
   `).get(req.session.userId);
@@ -416,18 +424,18 @@ router.post("/spin", async (req, res) => {
     insertReward(req.session.userId, card);
     dropInfo = { type: "card", id: card.id, rarity: card.rarity };
   } else if (drop?.type === "crate") {
-    // free elite pull, opened on the spot
-    const freeCrate = openCrateRoll("elite");
-    const crateRewards = freeCrate.rewards.map((r) =>
-      insertReward(req.session.userId, r)
+    // Free elite pull lands as an openable pending crate (Store tab) —
+    // nothing is opened here, so the toast must not promise cards.
+    const entry = { id: makePendingId(), type: "elite", unlockAt: Date.now() };
+    const next = addPendingCrate(readPendingCrates(user.pending_crate), entry);
+    db.prepare("UPDATE users SET pending_crate = ? WHERE id=?").run(
+      writePendingCrates(next),
+      req.session.userId
     );
     dropInfo = {
       type: "crate",
-      label: freeCrate.label,
-      rewards: crateRewards,
-      bonusRewards: freeCrate.bonusRewards
-        ? freeCrate.bonusRewards.map((r) => insertReward(req.session.userId, r))
-        : null
+      label: CRATE_TYPES.elite.label,
+      pendingId: entry.id
     };
   }
   if (dropInfo?.type === "coins") newBalance += dropInfo.amount;
@@ -767,61 +775,115 @@ router.post("/open-crate", async (req, res) => {
     if (!(await requireLogin(req, res))) return;
 
     const type = req.body?.type;
-
-    if (!CRATE_TYPES[type]) {
-      return res.status(400).json({ error: "Invalid crate type" });
-    }
+    const pendingId = req.body?.pendingId;
 
     const user = db
       .prepare("SELECT balance, pending_crate FROM users WHERE id=?")
       .get(req.session.userId);
 
-    // --- ⏳ TIMED CRATE: buy → wait → claim ---
+    const savePending = (list) =>
+      db.prepare("UPDATE users SET pending_crate = ? WHERE id=?").run(
+        writePendingCrates(list),
+        req.session.userId
+      );
+
+    const freshPending = () =>
+      readPendingCrates(
+        db.prepare("SELECT pending_crate FROM users WHERE id=?").get(req.session.userId)
+          .pending_crate
+      );
+
+    const openRolled = (crateType) => {
+      const opened = openCrateRoll(crateType);
+      const rewards = opened.rewards.map((r) => insertReward(req.session.userId, r));
+      let bonusRewards = null;
+      if (opened.bonusRewards) {
+        bonusRewards = opened.bonusRewards.map((r) => insertReward(req.session.userId, r));
+      }
+      return { opened, rewards, bonusRewards };
+    };
+
+    // --- 📦 OPEN A PENDING CRATE (timed countdown or free bonus pull) ---
+    if (pendingId) {
+      const list = readPendingCrates(user.pending_crate);
+      const entry = findPendingCrate(list, pendingId);
+      if (!entry) {
+        return res.status(404).json({ error: "Crate not found" });
+      }
+      const label =
+        (CRATE_TYPES[entry.type] && CRATE_TYPES[entry.type].label) || entry.type;
+      const now = Date.now();
+      if (entry.unlockAt && now < entry.unlockAt) {
+        return res.status(400).json({
+          error: `${label} crate is still unlocking`,
+          remainingSeconds: Math.ceil((entry.unlockAt - now) / 1000)
+        });
+      }
+      const { opened, rewards, bonusRewards } = openRolled(entry.type);
+      savePending(removePendingCrate(list, pendingId));
+      const fresh = db
+        .prepare("SELECT balance FROM users WHERE id=?")
+        .get(req.session.userId);
+      return res.json({
+        rewards,
+        bonusRewards,
+        label: opened.label,
+        pendingCrates: freshPending(),
+        balance: fresh.balance
+      });
+    }
+
+    if (!CRATE_TYPES[type]) {
+      return res.status(400).json({ error: "Invalid crate type" });
+    }
+
+    // --- ⏳ TIMED CRATE: buy → wait → claim (one timed pending at a time) ---
     if (type === "timed") {
-      const pending = user.pending_crate ? JSON.parse(user.pending_crate) : null;
+      const list = readPendingCrates(user.pending_crate);
+      const existing = list.find((c) => c.type === "timed") || null;
       const now = Date.now();
 
-      // No pending → purchase one.
-      if (!pending) {
+      // No timed pending → purchase one.
+      if (!existing) {
         const cost = CRATE_TYPES.timed.cost;
         if (user.balance < cost) {
           return res.json({ error: "Not enough balance" });
         }
 
         const unlockAt = now + TIMED_UNLOCK_SECONDS * 1000;
+        const entry = { id: makePendingId(), type: "timed", unlockAt };
+        const next = addPendingCrate(list, entry);
         db.prepare(
           "UPDATE users SET balance = balance - ?, pending_crate = ? WHERE id=?"
-        ).run(cost, JSON.stringify({ type: "timed", unlockAt }), req.session.userId);
+        ).run(cost, writePendingCrates(next), req.session.userId);
 
         return res.json({
           pending: true,
+          pendingId: entry.id,
           unlockAt,
           seconds: TIMED_UNLOCK_SECONDS,
-          balance: user.balance - cost
+          balance: user.balance - cost,
+          pendingCrates: next
         });
       }
 
       // Pending but still locked.
-      if (now < pending.unlockAt) {
+      if (now < existing.unlockAt) {
         return res.status(400).json({
           error: "Timed crate is still unlocking",
-          remainingSeconds: Math.ceil((pending.unlockAt - now) / 1000)
+          remainingSeconds: Math.ceil((existing.unlockAt - now) / 1000)
         });
       }
 
-      // Ready — open it and clear the slot.
-      const opened = openCrateRoll("timed");
-      const rewards = opened.rewards.map((r) => insertReward(req.session.userId, r));
-      let bonusRewards = null;
-      if (opened.bonusRewards) {
-        bonusRewards = opened.bonusRewards.map((r) => insertReward(req.session.userId, r));
-      }
-
-      db.prepare("UPDATE users SET pending_crate = NULL WHERE id=?").run(
-        req.session.userId
-      );
-
-      return res.json({ rewards, bonusRewards, balance: user.balance });
+      // Ready — open it and clear that entry.
+      const { opened, rewards, bonusRewards } = openRolled("timed");
+      savePending(removePendingCrate(list, existing.id));
+      return res.json({
+        rewards,
+        bonusRewards,
+        pendingCrates: freshPending(),
+        balance: user.balance
+      });
     }
 
     // --- STANDARD CRATES ---
@@ -831,12 +893,7 @@ router.post("/open-crate", async (req, res) => {
       return res.json({ error: "Not enough balance" });
     }
 
-    const opened = openCrateRoll(type);
-    const rewards = opened.rewards.map((r) => insertReward(req.session.userId, r));
-    let bonusRewards = null;
-    if (opened.bonusRewards) {
-      bonusRewards = opened.bonusRewards.map((r) => insertReward(req.session.userId, r));
-    }
+    const { opened, rewards, bonusRewards } = openRolled(type);
 
     const newBalance = user.balance - cost;
     db.prepare("UPDATE users SET balance=? WHERE id=?").run(
@@ -844,7 +901,13 @@ router.post("/open-crate", async (req, res) => {
       req.session.userId
     );
 
-    res.json({ rewards, bonusRewards, label: opened.label, balance: newBalance });
+    res.json({
+      rewards,
+      bonusRewards,
+      label: opened.label,
+      pendingCrates: readPendingCrates(user.pending_crate),
+      balance: newBalance
+    });
   } catch (err) {
     console.error("🔥 OPEN CRATE ERROR:", err);
     res.status(500).json({ error: "Server error", details: err.message });

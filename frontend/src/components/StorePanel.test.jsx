@@ -87,7 +87,7 @@ describe("StorePanel crates", () => {
     vi.useFakeTimers();
     const unlockAt = Date.now() + 5000;
     const { onOpenCrate } = setup({
-      pendingCrate: { type: "timed", unlockAt }
+      pendingCrates: [{ id: "t1", type: "timed", unlockAt }]
     });
 
     // locked while counting down
@@ -106,7 +106,7 @@ describe("StorePanel crates", () => {
 
     // fireEvent is synchronous — safe with fake timers active
     fireEvent.click(screen.getByText("OPEN!").closest("button"));
-    expect(onOpenCrate).toHaveBeenCalledWith("timed");
+    expect(onOpenCrate).toHaveBeenCalledWith(null, "t1");
   });
 
   it("no pending crate → timed crate is purchasable", async () => {
@@ -118,5 +118,34 @@ describe("StorePanel crates", () => {
     expect(timedBtn).toBeEnabled();
     await user.click(timedBtn);
     expect(onOpenCrate).toHaveBeenCalledWith("timed");
+  });
+
+  it("lists free bonus pulls with their own OPEN buttons", async () => {
+    const user = userEvent.setup();
+    const { onOpenCrate } = setup({
+      pendingCrates: [{ id: "e1", type: "elite", unlockAt: Date.now() - 1000 }]
+    });
+
+    expect(screen.getByText(/Unopened bonus pulls/)).toBeInTheDocument();
+    const openBtn = screen.getByText("OPEN").closest("button");
+    expect(openBtn).toBeEnabled();
+    await user.click(openBtn);
+    expect(onOpenCrate).toHaveBeenCalledWith(null, "e1");
+  });
+
+  it("a locked timed crate and a ready bonus pull coexist", async () => {
+    const { onOpenCrate } = setup({
+      pendingCrates: [
+        { id: "t1", type: "timed", unlockAt: Date.now() + 60000 },
+        { id: "e1", type: "elite", unlockAt: Date.now() - 1000 }
+      ]
+    });
+
+    // timed still counting down and locked…
+    expect(screen.getByText("TIMED").closest("button")).toBeDisabled();
+    // …while the bonus pull opens independently by id
+    fireEvent.click(screen.getByText("OPEN").closest("button"));
+    expect(onOpenCrate).toHaveBeenCalledWith(null, "e1");
+    expect(onOpenCrate).not.toHaveBeenCalledWith(null, "t1");
   });
 });

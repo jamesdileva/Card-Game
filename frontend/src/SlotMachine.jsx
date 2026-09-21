@@ -35,7 +35,7 @@ export default function SlotMachine() {
   const [crateResult, setCrateResult] = useState(null);
   const [crateOpening, setCrateOpening] = useState(false);
   const [crateBonus, setCrateBonus] = useState(null);
-  const [pendingCrate, setPendingCrate] = useState(null);
+  const [pendingCrates, setPendingCrates] = useState([]);
 const [toast, setToast] = useState(null);
 const [streak, setStreak] = useState(0);
 const [loginStreak, setLoginStreak] = useState(0);
@@ -101,9 +101,10 @@ const startSpinSound = () => {
   const buffer = ctx.createBuffer(1, ctx.sampleRate * 1, ctx.sampleRate);
   const data = buffer.getChannelData(0);
 
-  // softer noise
+  // Audible bed under the reel ticks (ticks peak ~0.07): keep the loop
+  // clearly audible but well below clipping even when layered.
   for (let i = 0; i < data.length; i++) {
-    data[i] = (Math.random() * 2 - 1) * 0.05;
+    data[i] = (Math.random() * 2 - 1) * 0.12;
   }
 
   noise.buffer = buffer;
@@ -111,14 +112,14 @@ const startSpinSound = () => {
 
   const filter = ctx.createBiquadFilter();
   filter.type = "lowpass";
-  filter.frequency.value = 300; // smoother
+  filter.frequency.value = 550; // bright enough to survive laptop speakers
 
   const gain = ctx.createGain();
 
   // 🔥 ramp-in (de-clicks the onset; kept short so the whir is audible
   // from the first churn — a long ramp leaves the spin start silent)
   gain.gain.setValueAtTime(0.001, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.06, ctx.currentTime + 0.07);
+  gain.gain.exponentialRampToValueAtTime(0.14, ctx.currentTime + 0.07);
 
   // 🔥 LFO (this adds motion)
   const lfo = ctx.createOscillator();
@@ -317,7 +318,7 @@ let spinInterval = setInterval(() => {
             } else if (d.type === "card") {
               setToast(`🎁 Bonus drop: ${cardName(d.id)} card!`);
             } else if (d.type === "crate") {
-              setToast(`🎰 Bonus drop: free ${d.label} — check your inventory!`);
+              setToast(`🎰 Bonus drop: free ${d.label} — open it in the Store!`);
             }
           }
           if (data.totalLevelReward > 0) {
@@ -405,7 +406,7 @@ useEffect(() => {
             setPlayerBoost(data.payoutBoost || 1);
             setXpBoost(data.xpBoost || 1);
             setLoginStreak(data.loginStreak || 0);
-            setPendingCrate(data.pendingCrate || null);
+            setPendingCrates(data.pendingCrates || []);
             if (data.loginReward > 0) {
               setLoginPopup({
                 streak: data.loginStreak,
@@ -697,7 +698,7 @@ useEffect(() => {
 
     }, [deck]);
 
-  async function openCrate(type) {
+  async function openCrate(type, pendingId = null) {
     if (crateLockRef.current) return;
     crateLockRef.current = true;
     setStoreBusy(true);
@@ -706,7 +707,7 @@ useEffect(() => {
       const res = await authedFetch(`${API}/game/open-crate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type })
+        body: JSON.stringify({ type, pendingId })
       });
 
       if (!res) return;
@@ -722,9 +723,10 @@ useEffect(() => {
         return;
       }
 
+      if (data.pendingCrates) setPendingCrates(data.pendingCrates);
+
       if (data.pending) {
         // timed crate purchased — starts unlocking
-        setPendingCrate({ type: "timed", unlockAt: data.unlockAt });
         setBalance(data.balance);
         setToast("⏳ Timed crate purchased — come back in 2:00");
         return;
@@ -1137,7 +1139,7 @@ useEffect(() => {
             onUpgradeXP={upgradeXP}
             onUpgradePayout={upgradePayout}
             onOpenCrate={openCrate}
-            pendingCrate={pendingCrate}
+            pendingCrates={pendingCrates}
             busy={storeBusy}
           />
         )}

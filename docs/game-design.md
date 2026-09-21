@@ -92,7 +92,7 @@ Five types (2 picks each; all can contain a bonus crate-in-crate):
 | 🔵 Premium      | 250  | common/rare/epic             | 6%             |
 | 🟣 Elite        | 500  | rare/epic/legendary          | 8%             |
 | 🔴 Corrupted    | 700  | Trash 30% (1 common) / high tier 50% (rares+epics) / insane 20% (legendaries); each reward 35% to be a corrupted variant (×2 effect, −XP while equipped) | 10% |
-| ⏳ Timed        | 400  | Guaranteed rare+ (rare/rare/epic/legendary); unlocks 2 min after purchase, one pending at a time | 10% |
+| ⏳ Timed        | 400  | Guaranteed rare+ (rare/rare/epic/legendary); unlocks 2 min after purchase, one timed pending at a time (free bonus pulls stack alongside) | 10% |
 
 ### Slot spin bonus drops (per spin)
 

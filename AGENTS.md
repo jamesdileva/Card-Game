@@ -64,6 +64,29 @@ Notes:
 
 ## Changelog / History
 
+### 2026-09-16 — Free-Elite drops become real pending crates + louder whir
+
+- **"Free crate" that was never a crate:** spin crate drops opened an
+  Elite pull instantly and toasted "check your inventory", with no crate
+  to open. Now the drop appends an already-unlocked `elite` entry to the
+  pending list (toast: "open it in the Store!").
+- **Pending list** (`backend/game/pendingCrates.js`, unit-tested):
+  `pending_crate` now holds a JSON *array* of `{id,type,unlockAt}`;
+  legacy single objects read as one-element lists (no migration). Timed
+  rule is now "one *timed* pending at a time" so bonus pulls never
+  collide. `/open-crate` takes `{pendingId}` to open entries (404/400 on
+  unknown/locked); `/state` returns `pendingCrates`. Store tab renders the
+  timed countdown/OPEN plus an Unopened bonus-pulls section reusing the
+  reveal modal. Timed purchase still `type: "timed"`.
+- **Louder whir:** the spin loop was ~20× quieter than the ticks (0.003
+  vs 0.07 peak), i.e. inaudible on laptop speakers — the "silent start"
+  was level, not timing. Noise 0.05→0.12, gain 0.06→0.14, lowpass
+  300→550Hz. Ear-check still required.
+- Verified live in exe (custom port — :3000 was squatted by an unrelated
+  `node dist/server.js`): timed buy→locked rebuy 400→130s wait→open by
+  id; 150-spin soak, 0 errors, 2 crate drops listed + opened with real
+  cards. Backend 91/91, frontend 73/73, lint 0 errors. api.md updated.
+
 ### 2026-09-16 — Spin whir starts immediately + shorter ramp-in
 
 - **Symptom:** reels churned in silence for the start of each spin; the
