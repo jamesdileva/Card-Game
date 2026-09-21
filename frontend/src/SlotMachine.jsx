@@ -115,9 +115,10 @@ const startSpinSound = () => {
 
   const gain = ctx.createGain();
 
-  // 🔥 ramp-in (important)
+  // 🔥 ramp-in (de-clicks the onset; kept short so the whir is audible
+  // from the first churn — a long ramp leaves the spin start silent)
   gain.gain.setValueAtTime(0.001, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.06, ctx.currentTime + 0.2);
+  gain.gain.exponentialRampToValueAtTime(0.06, ctx.currentTime + 0.07);
 
   // 🔥 LFO (this adds motion)
   const lfo = ctx.createOscillator();
@@ -263,9 +264,10 @@ async function upgradePayout() {
 function finishSpin(data) {
 const spinSymbols = ["cherry","lemon","orange","grape","clover","gem","star","crown"];
 
-// 🎰 start spinning animation
+// 🎰 start spinning animation — the whir starts NOW, not on the first
+// interval tick, so there is no silent lead-in while the reels churn.
+startSpinSound();
 let spinInterval = setInterval(() => {
-  startSpinSound();
   setReels(Array(5).fill(0).map(() =>
     
     spinSymbols[Math.floor(Math.random() * spinSymbols.length)]

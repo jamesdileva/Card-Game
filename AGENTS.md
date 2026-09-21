@@ -64,6 +64,21 @@ Notes:
 
 ## Changelog / History
 
+### 2026-09-16 — Spin whir starts immediately + shorter ramp-in
+
+- **Symptom:** reels churned in silence for the start of each spin; the
+  whir only became audible briefly before the (already-fixed) end sounds.
+- **Cause:** `startSpinSound()` ran on the first 60ms-interval tick, and
+  its 200ms ramp-in meant it was still swelling from inaudible when the
+  250ms churn ended.
+- **Fix** (`SlotMachine.jsx` only): whir starts synchronously at the top
+  of `finishSpin` (interval churns visuals only); ramp-in 200→70ms, same
+  peak. Deliberately not starting pre-fetch (a failed request would leave
+  the loop droning with no final reel to stop it).
+- Verified: frontend 71/71, lint 0 errors, build passes, backend
+  untouched, repacked exe serves the new bundle (confirmed in the shipped
+  minified code). Ear-check in the exe recommended.
+
 ### 2026-09-16 — Enter-to-login + sound timing polish
 
 - **Enter submits the login:** the login inputs are now a real `<form>`
